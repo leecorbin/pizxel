@@ -1,0 +1,3 @@
+# LED Matrix Display Emulator
+# No external dependencies currently - uses Python standard library only
+# This keeps the project Pi Zero compatible and lightweight
