@@ -46,6 +46,15 @@ Retro 8×8 pixel font (ZX Spectrum character set):
 - **Production**: Real LED matrices on Raspberry Pi *(coming soon)*
 - Same code, different renderer - no changes needed!
 
+### Matrix OS - Interactive Framework
+Build complete interactive applications with input and output:
+- **Input abstraction**: Keyboard now, GPIO buttons later
+- **Event system**: Arrow keys, OK/Enter, Back/Esc, shortcuts
+- **Menu navigation**: Built-in menu system with callbacks
+- **Game framework**: Perfect for building games and apps
+- **Context managers**: Clean resource management
+- Same input API works across terminal and Pi hardware!
+
 ### Zero Dependencies
 Pure Python standard library - runs on any Python 3.7+ system, including Raspberry Pi Zero.
 
@@ -149,6 +158,39 @@ matrix.clear()
 matrix.fill((100, 100, 100))
 ```
 
+#### Input & Interaction (Matrix OS)
+```python
+from src.input import KeyboardInput, Menu, InputEvent
+
+# Basic input handling
+with KeyboardInput() as input_handler:
+    while running:
+        # Non-blocking input (with timeout)
+        event = input_handler.get_key(timeout=0.01)
+        if event:
+            if event.key == InputEvent.UP:
+                y -= 1
+            elif event.key == InputEvent.DOWN:
+                y += 1
+            elif event.key == InputEvent.LEFT:
+                x -= 1
+            elif event.key == InputEvent.RIGHT:
+                x += 1
+            elif event.key == InputEvent.OK:
+                # Enter/Return pressed
+                do_action()
+            elif event.key in [InputEvent.QUIT, InputEvent.BACK]:
+                running = False
+
+# Menu system
+with KeyboardInput() as input_handler:
+    menu = Menu(matrix, input_handler, "MAIN")
+    menu.add_item("START", callback=start_game, shortcut="1")
+    menu.add_item("OPTIONS", callback=show_options, shortcut="2")
+    menu.add_item("QUIT", callback=None, shortcut="Q")
+    selected = menu.run()  # Returns selected label or None
+```
+
 ### Complete API
 
 For the full API with all available functions, see:
@@ -174,26 +216,43 @@ See [`examples/README.md`](examples/README.md) for detailed descriptions of all 
 - `starfield_demo.py` - Particle systems and 3D effects
 - `zx_spectrum_menu.py` - Retro ZX Spectrum tribute
 
+**Interactive apps & games:**
+- `interactive_app_example.py` - Drawing app (Matrix OS basics)
+- `game_snake.py` - Classic snake game
+- `game_breakout.py` - Brick-breaking arcade game
+- `game_tetris.py` - Full Tetris implementation
+
 ## 🏗️ Architecture
 
 The system is designed in layers for easy hardware swapping:
 
 ```
-Your Application Code
-        ↓
-  High-Level API (led_api.py)
-        ↓
-Graphics + Font (graphics.py, font.py)
-        ↓
-  Display Framebuffer (display.py)
-        ↓
-       Renderer
-    ↙         ↘
-Terminal    LED Matrix
-Renderer    Renderer*
+     Your Application Code
+            ↓
+    ┌───────────────────┐
+    │  Matrix OS Layer  │
+    ├─────────┬─────────┤
+    │  Input  │ Output  │
+    └─────────┴─────────┘
+         ↓         ↓
+    Input API  LED API
+         ↓         ↓
+    ┌─────────────────┐
+    │  Graphics+Font  │
+    └─────────────────┘
+         ↓         ↓
+    ┌─────────────────┐
+    │  Framebuffer    │
+    └─────────────────┘
+         ↓         ↓
+    ┌─────────────────┐
+    │    Renderers    │
+    ├────────┬────────┤
+    │Terminal│ LED*   │
+    └────────┴────────┘
 ```
 
-**\*LED Matrix Renderer coming soon!** The architecture is renderer-agnostic - your code stays the same whether outputting to terminal or real LEDs.
+**\*LED Matrix & GPIO coming soon!** The architecture is fully abstracted - your code stays the same whether using terminal or real hardware.
 
 ## 🔮 Roadmap
 
@@ -202,7 +261,10 @@ Renderer    Renderer*
 - [x] ZX Spectrum font
 - [x] Terminal renderer
 - [x] Demo collection
-- [ ] **GPIO/LED matrix renderer** *(in progress)*
+- [x] Input abstraction layer (Matrix OS)
+- [x] Interactive applications & games
+- [ ] **GPIO/LED matrix renderer** *(next up!)*
+- [ ] GPIO button input
 - [ ] Sprite/image loading
 - [ ] Animation framework
 - [ ] Network/API integration
@@ -232,10 +294,13 @@ pi-matrix/
 │   ├── display.py       # Core framebuffer & renderer
 │   ├── graphics.py      # Drawing primitives
 │   ├── font.py          # ZX Spectrum font system
+│   ├── input.py         # Input abstraction (Matrix OS)
 │   └── led_api.py       # High-level user API
 ├── examples/
 │   ├── start_here.py    # Interactive demo launcher (START HERE!)
-│   ├── *.py             # Various demos
+│   ├── game_*.py        # Interactive games (Snake, Breakout, Tetris)
+│   ├── interactive_app_example.py  # Drawing app
+│   ├── *.py             # Other demos
 │   └── README.md        # Demo documentation
 ├── LICENSE              # MIT License
 ├── README.md            # This file

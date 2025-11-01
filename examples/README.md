@@ -110,6 +110,56 @@ ZX Spectrum-inspired display screens:
 
 Nostalgic tribute to 1980s computing!
 
+## 🎮 Interactive Applications & Games
+
+These examples demonstrate the **Matrix OS** framework - building fully interactive applications with both input and output. They use the new input abstraction layer that works with keyboard now and will support GPIO buttons on Raspberry Pi.
+
+### `interactive_app_example.py` - Drawing App
+Simple pixel drawing application showing the basics of interactive apps:
+- **Cursor movement**: Arrow keys to move 2×2 cursor
+- **Drawing**: Space bar to toggle pixels on/off
+- **Clearing**: C key to clear screen
+- **Controls**: Q/ESC to quit
+- **Visual feedback**: Blinking cursor indicator
+
+Perfect starting point for building your own Matrix OS apps!
+
+### `game_snake.py` - Snake Game
+Classic snake game adapted for 64×64 display:
+- **Controls**: Arrow keys to change direction
+- **Gameplay**: Eat food to grow longer and score points
+- **Collision detection**: Wall and self-collision ends game
+- **Progressive difficulty**: Speed increases as you score
+- **Visual indicators**: Blinking food, yellow head, green body
+- **Score tracking**: Points and length display
+
+A complete game in under 200 lines!
+
+### `game_breakout.py` - Breakout
+Brick-breaking arcade game with full physics:
+- **Controls**: Left/Right arrows to move paddle
+- **Physics**: Ball bouncing with spin based on paddle hit position
+- **Brick grid**: 4 rows of colored bricks (28 total)
+- **Lives system**: 3 lives, displayed as icons
+- **Scoring**: 10 points per brick
+- **Win condition**: Clear all bricks
+- **Game states**: Title screen, gameplay, game over, victory
+
+Shows how to build arcade-style games with collision detection.
+
+### `game_tetris.py` - Tetris
+Full Tetris implementation with all classic features:
+- **Controls**: Arrow keys to move/rotate, Down to drop faster
+- **All 7 tetrominoes**: I, O, T, S, Z, J, L pieces in classic colors
+- **Rotation**: 90-degree rotation with wall/block collision checking
+- **Playfield**: 10×20 grid rendered as 2×2 pixel blocks
+- **Line clearing**: With score multipliers (100/300/500/800 for 1-4 lines)
+- **Next piece preview**: See what's coming
+- **Progressive speed**: Game gets faster as you score
+- **Game over detection**: Spawning collision ends game
+
+A complete Tetris in under 310 lines - challenge yourself in 64×64!
+
 ## 🔧 Testing & Utilities
 
 ### `aspect_test.py` - Display Aspect Ratio

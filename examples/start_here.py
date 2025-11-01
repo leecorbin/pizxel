@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-START HERE - Demo Launcher
-Interactive menu to explore all LED matrix demos!
+START HERE - Interactive Demo Launcher
+Navigate with arrow keys, Enter to select, ESC/Q to quit
 """
 
 import sys
@@ -12,13 +12,12 @@ import subprocess
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.led_api import create_matrix
+from src.input import KeyboardInput, Menu
 
 
-def show_loading_screen(matrix):
-    """Show ZX Spectrum style loading screen."""
+def show_splash(matrix):
+    """Show ZX Spectrum style splash screen."""
     matrix.clear()
-
-    # Background
     matrix.fill((0, 0, 0))
 
     # Rainbow border
@@ -37,139 +36,99 @@ def show_loading_screen(matrix):
 
     # Loading bars
     bar_y = 32
-    for i, color in enumerate(colors[:5]):
-        matrix.rect(8 + i*2, bar_y, 40, 2, color, fill=True)
+    for i in range(5):
+        color = colors[i]
+        matrix.rect(8, bar_y, 48, 2, color, fill=True)
         bar_y += 3
 
     # Version
     matrix.centered_text("V1.0", 52, (255, 255, 255))
 
     matrix.show()
-    time.sleep(2)
+    time.sleep(1.5)
 
 
-def show_menu(matrix):
-    """Show demo selection menu."""
-    matrix.clear()
-
-    # Background - cyan (ZX Spectrum style)
-    matrix.fill((0, 150, 150))
-
-    # Border
-    for i in range(2):
-        matrix.rect(i, i, 64 - 2*i, 64 - 2*i, (255, 255, 0), fill=False)
-
-    # Title bar
-    matrix.rect(4, 4, 56, 9, (0, 0, 0), fill=True)
-    matrix.centered_text("DEMOS", 6, (255, 255, 0))
-
-    # Menu items (compact for 64x64)
-    demos = [
-        ("1.HELLO", (255, 255, 255)),
-        ("2.GRAPH", (255, 255, 255)),
-        ("3.TEXT", (255, 255, 255)),
-        ("4.UI", (255, 255, 255)),
-        ("5.ANIM", (255, 255, 255)),
-        ("6.FX", (255, 255, 255)),
-    ]
-
-    y = 16
-    for text, color in demos:
-        matrix.text(text, 8, y, color, (0, 100, 100))
-        y += 8
-
-    # Instructions at bottom
-    matrix.centered_text("TYPE#", 56, (255, 255, 0))
-
-    matrix.show()
-
-
-def run_demo(demo_number):
-    """Run the selected demo."""
-    demos = {
-        '1': 'hello_world.py',
-        '2': 'graphics_showcase.py',
-        '3': 'text_showcase.py',
-        '4': 'combined_demo.py',
-        '5': 'animation_demo.py',
-        '6': 'plasma_demo.py',
-    }
-
-    if demo_number in demos:
-        demo_file = os.path.join(os.path.dirname(__file__), demos[demo_number])
-        print(f"\n\nLaunching: {demos[demo_number]}\n")
-        print("=" * 64)
-        subprocess.run([sys.executable, demo_file])
+def run_demo(demo_file):
+    """Run a demo script."""
+    demo_path = os.path.join(os.path.dirname(__file__), demo_file)
+    if os.path.exists(demo_path):
+        print(f"\n{'='*64}")
+        print(f"Launching: {demo_file}")
+        print(f"{'='*64}\n")
+        subprocess.run([sys.executable, demo_path])
+        print(f"\n{'='*64}")
+        print("Demo finished. Press any key to return to menu...")
+        print(f"{'='*64}\n")
         return True
     return False
 
 
 def main():
     """Main demo launcher."""
+    print("\n" + "="*64)
+    print("PI-MATRIX DEMO LAUNCHER")
+    print("="*64)
+    print("\nControls:")
+    print("  ↑/↓    - Navigate menu")
+    print("  Enter  - Select demo")
+    print("  ESC/Q  - Quit")
+    print("  0-9    - Quick select demo")
+    print("  S/B/T  - Quick select game (Snake/Breakout/Tetris)")
+    print("\n" + "="*64 + "\n")
+
+    # Create matrix and input
     matrix = create_matrix(64, 64, 'rgb')
 
-    # Show loading screen
-    show_loading_screen(matrix)
+    with KeyboardInput() as input_handler:
+        # Show splash
+        show_splash(matrix)
 
-    # Show menu
-    show_menu(matrix)
+        running = True
+        while running:
+            # Create menu
+            menu = Menu(matrix, input_handler, "DEMOS")
 
-    # Print menu to terminal too
-    print("\n")
-    print("=" * 64)
-    print("PI-MATRIX DEMO LAUNCHER")
-    print("=" * 64)
-    print()
-    print("Available Demos:")
-    print()
-    print("  1. Hello World       - Quick start example")
-    print("  2. Graphics          - All drawing primitives")
-    print("  3. Text              - ZX Spectrum font system")
-    print("  4. UI Examples       - Combined graphics + text")
-    print("  5. Animations        - Moving patterns")
-    print("  6. Plasma Effects    - Mathematical visualizations")
-    print()
-    print("  7. Physics           - Bouncing balls simulation")
-    print("  8. Starfield         - Particle systems")
-    print("  9. Spectrum Style    - Retro ZX Spectrum screens")
-    print()
-    print("  0. Exit")
-    print()
-    print("=" * 64)
+            # Add demo items
+            demos = [
+                ("HELLO", "hello_world.py", "1"),
+                ("GRAPH", "graphics_showcase.py", "2"),
+                ("TEXT", "text_showcase.py", "3"),
+                ("UI", "combined_demo.py", "4"),
+                ("ANIM", "animation_demo.py", "5"),
+                ("FX", "plasma_demo.py", "6"),
+                ("PHYS", "physics_demo.py", "7"),
+                ("STAR", "starfield_demo.py", "8"),
+                ("RETRO", "zx_spectrum_menu.py", "9"),
+                ("DRAW", "interactive_app_example.py", "0"),
+                ("SNAKE", "game_snake.py", "S"),
+                ("BREAK", "game_breakout.py", "B"),
+                ("TETRS", "game_tetris.py", "T"),
+                ("QUIT", None, "Q"),
+            ]
 
-    while True:
-        choice = input("\nEnter demo number (0 to exit): ").strip()
+            for label, demo_file, shortcut in demos:
+                if demo_file:
+                    menu.add_item(
+                        label,
+                        callback=lambda f=demo_file: run_demo(f),
+                        shortcut=shortcut
+                    )
+                else:
+                    menu.add_item(label, callback=None, shortcut=shortcut)
 
-        if choice == '0':
-            print("\nThanks for exploring Pi-Matrix!")
-            print("Check out the README.md for API documentation.")
-            break
-        elif choice == '7':
-            demo_file = os.path.join(os.path.dirname(__file__), 'physics_demo.py')
-            print(f"\n\nLaunching: physics_demo.py\n")
-            print("=" * 64)
-            subprocess.run([sys.executable, demo_file])
-        elif choice == '8':
-            demo_file = os.path.join(os.path.dirname(__file__), 'starfield_demo.py')
-            print(f"\n\nLaunching: starfield_demo.py\n")
-            print("=" * 64)
-            subprocess.run([sys.executable, demo_file])
-        elif choice == '9':
-            demo_file = os.path.join(os.path.dirname(__file__), 'zx_spectrum_menu.py')
-            print(f"\n\nLaunching: zx_spectrum_menu.py\n")
-            print("=" * 64)
-            subprocess.run([sys.executable, demo_file])
-        elif run_demo(choice):
-            pass  # Demo ran successfully
-        else:
-            print("Invalid choice! Please enter a number 0-9.")
+            # Run menu
+            selected = menu.run()
 
-        # Show menu again after demo finishes
-        if choice != '0':
-            print("\n" + "=" * 64)
-            print("Press Enter to return to menu...")
-            input()
-            show_menu(matrix)
+            if selected == "QUIT" or selected is None:
+                running = False
+            else:
+                # Demo was run, wait for key before showing menu again
+                input_handler.wait_for_key()
+
+    # Clean exit
+    print("\n" + "="*64)
+    print("Thanks for exploring Pi-Matrix!")
+    print("="*64 + "\n")
 
 
 if __name__ == '__main__':
@@ -177,4 +136,7 @@ if __name__ == '__main__':
         main()
     except KeyboardInterrupt:
         print("\n\nExiting Pi-Matrix Demo Launcher.")
-        print("Thanks for exploring!")
+    except Exception as e:
+        print(f"\n\nError: {e}")
+        import traceback
+        traceback.print_exc()
