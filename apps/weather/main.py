@@ -400,5 +400,9 @@ def main():
     print("\nWeather app closed.")
 
 
+# App instance for launcher
+app = WeatherApp()
+
+
 if __name__ == '__main__':
     main()

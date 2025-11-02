@@ -308,5 +308,9 @@ def main():
     print("\nSettings app closed.")
 
 
+# App instance for launcher
+app = SettingsApp()
+
+
 if __name__ == '__main__':
     main()

@@ -465,5 +465,9 @@ def main():
     print("\nDemos app closed.")
 
 
+# App instance for launcher
+app = DemosApp()
+
+
 if __name__ == '__main__':
     main()

@@ -441,5 +441,9 @@ def main():
     print("\nFrogger closed.")
 
 
+# App instance for launcher
+app = FroggerGame()
+
+
 if __name__ == '__main__':
     main()

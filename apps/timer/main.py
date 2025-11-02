@@ -209,5 +209,9 @@ def main():
     print("\nTimer app closed.")
 
 
+# App instance for launcher
+app = TimerApp()
+
+
 if __name__ == '__main__':
     main()
