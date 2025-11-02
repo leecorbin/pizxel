@@ -21,8 +21,9 @@ class InputEvent:
     LEFT = 'LEFT'
     RIGHT = 'RIGHT'
     OK = 'OK'          # Enter key
-    BACK = 'BACK'      # ESC
-    QUIT = 'QUIT'      # Q
+    BACK = 'BACK'      # Backspace - go back one step
+    HOME = 'HOME'      # ESC - return to launcher
+    QUIT = 'QUIT'      # Q - quit application
     HELP = 'HELP'      # TAB key
 
     def __init__(self, key: str, raw: str = None):
@@ -155,15 +156,15 @@ class KeyboardInput:
         elif char in ['\n', '\r']:
             return InputEvent(InputEvent.OK, char)
 
-        # ESC (already handled above, but just in case)
+        # ESC = HOME button (return to launcher)
         elif char == '\x1b':
-            return InputEvent(InputEvent.BACK, char)
+            return InputEvent(InputEvent.HOME, char)
 
-        # Backspace (universal "go back" button)
+        # Backspace = BACK button (go back one step, dismiss overlays)
         elif char in ['\x7f', '\x08']:  # DEL or BS
             return InputEvent(InputEvent.BACK, char)
 
-        # Q for quit/back
+        # Q for quit
         elif char.lower() == 'q':
             return InputEvent(InputEvent.QUIT, char)
 

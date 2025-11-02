@@ -647,5 +647,13 @@ class PacManGame(App):
         layout.center_text(matrix, "R to Restart", 95, (150, 150, 150))
 
 
-# App instance
+def run(os_context):
+    """Entry point called by OS."""
+    app = PacManGame()
+    os_context.register_app(app)
+    os_context.switch_to_app(app)
+    os_context.run()
+
+
+# App instance for launcher
 app = PacManGame()

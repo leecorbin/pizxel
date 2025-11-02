@@ -298,7 +298,7 @@ class OSContext:
                         self.help_scroll = min(max_scroll, self.help_scroll + 1)
                         if self.active_app:
                             self.active_app.dirty = True
-                    elif event.key == 'BACK':
+                    elif event.key == InputEvent.BACK:
                         # Close help
                         self.showing_help = False
                         self.help_scroll = 0
@@ -310,8 +310,17 @@ class OSContext:
                     if self.active_app:
                         handled = self.active_app.on_event(event)
 
-                    # If app didn't handle BACK, OS handles it (exit to launcher)
-                    if not handled and event.key == 'BACK':
+                    # HOME always returns to launcher (like iOS home button)
+                    if event.key == InputEvent.HOME:
+                        if self.launcher:
+                            self.switch_to_app(self.launcher)
+                        else:
+                            # No launcher registered, just exit the OS loop
+                            self.running = False
+                            continue
+                    
+                    # If app didn't handle BACK, let it bubble up (exit to launcher)
+                    elif not handled and event.key == InputEvent.BACK:
                         if self.launcher:
                             self.switch_to_app(self.launcher)
                         else:
