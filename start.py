@@ -173,7 +173,7 @@ class Launcher:
             # Handle input
             event = self.input_handler.get_key(timeout=0.1)
 
-            if event and event.type == 'key_down':
+            if event:
                 if event.key == 'UP':
                     new_row = (self.selected_index // self.grid_width) - 1
                     if new_row >= 0:
@@ -192,14 +192,14 @@ class Launcher:
                     if self.selected_index % self.grid_width < self.grid_width - 1 and self.selected_index < len(self.apps) - 1:
                         self.selected_index += 1
 
-                elif event.key == 'ENTER':
+                elif event.key == 'OK':  # Enter key maps to OK
                     if 0 <= self.selected_index < len(self.apps):
                         selected_app = self.apps[self.selected_index]
                         selected_app.launch()
                         # Redraw after returning from app
                         self.draw()
 
-                elif event.key == 'ESCAPE' or event.key == 'q':
+                elif event.key == 'BACK' or event.key == 'QUIT':  # ESC or Q
                     running = False
 
 
