@@ -12,6 +12,7 @@ import random
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.display import Display, TerminalRenderer
+from src.config import parse_matrix_args
 
 
 class Star:
@@ -291,12 +292,13 @@ def demo_sparkles(display, renderer, duration=10):
 
 def main():
     """Run starfield and particle demos."""
+    args = parse_matrix_args(os.path.basename(__file__).replace(".py", "").replace("_", " ").title())
     print("LED Matrix Starfield & Particle Effects")
     print("========================================\n")
 
     # RGB for best visuals
     print("Creating 64x64 RGB display...\n")
-    display = Display(64, 64, color_mode='rgb')
+    display = Display(args.width, args.height, color_mode='rgb')
     renderer = TerminalRenderer(display)
 
     print("1. Starfield (3D effect)")

@@ -11,6 +11,8 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.led_api import create_matrix
+from src.config import parse_matrix_args
+from src.layout import LayoutHelper
 
 
 def draw_spectrum_border(matrix):
@@ -305,7 +307,9 @@ def main():
     print()
 
     # Create 64x64 RGB matrix
-    matrix = create_matrix(64, 64, 'rgb')
+    args = parse_matrix_args(os.path.basename(__file__).replace('.py', '').replace('_', ' ').title())
+    matrix = create_matrix(args.width, args.height, args.color_mode)
+    layout = LayoutHelper(matrix.width, matrix.height)
 
     print("Displaying ZX Spectrum style screens...\n")
 

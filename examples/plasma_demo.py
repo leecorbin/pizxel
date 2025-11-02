@@ -11,6 +11,7 @@ import math
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.display import Display, TerminalRenderer
+from src.config import parse_matrix_args
 
 
 def plasma_effect(display, renderer, duration=10):
@@ -154,6 +155,7 @@ def tunnel_effect(display, renderer, duration=8):
 
 def main():
     """Run plasma/mathematical effect demos."""
+    args = parse_matrix_args(os.path.basename(__file__).replace(".py", "").replace("_", " ").title())
     print("LED Matrix Plasma & Wave Effects")
     print("=================================\n")
 
@@ -162,7 +164,7 @@ def main():
 
     # RGB mode for best effect
     print("Creating 64x64 RGB display...\n")
-    display = Display(64, 64, color_mode='rgb')
+    display = Display(args.width, args.height, color_mode='rgb')
     renderer = TerminalRenderer(display)
 
     print("1. Classic Plasma Effect")

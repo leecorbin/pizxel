@@ -11,6 +11,7 @@ import math
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.display import Display, TerminalRenderer
+from src.config import parse_matrix_args
 
 
 def demo_moving_square(display, renderer, duration=5):
@@ -180,12 +181,13 @@ def demo_rgb_color_wave(display, renderer, duration=5):
 
 def main():
     """Run all animation demos."""
+    args = parse_matrix_args(os.path.basename(__file__).replace(".py", "").replace("_", " ").title())
     print("LED Matrix Animation Demos")
     print("==========================\n")
 
     # Monochrome animations
     print("Creating 64x64 display for monochrome animations...")
-    display = Display(64, 64, color_mode='mono')
+    display = Display(args.width, args.height, color_mode='mono')
     renderer = TerminalRenderer(display)
 
     print("\n1. Moving Square")
@@ -205,7 +207,7 @@ def main():
 
     # RGB animation
     print("\n6. RGB Color Waves")
-    display_rgb = Display(64, 64, color_mode='rgb')
+    display_rgb = Display(args.width, args.height, color_mode='rgb')
     renderer_rgb = TerminalRenderer(display_rgb)
     demo_rgb_color_wave(display_rgb, renderer_rgb, duration=3)
 

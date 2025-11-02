@@ -24,22 +24,21 @@ def parse_matrix_args(description=None):
         '--width',
         type=int,
         default=64,
-        choices=[64, 128],
-        help='Matrix width in pixels (default: 64)'
+        help='Matrix width in pixels (default: 64, typically multiples of 16)'
     )
 
     parser.add_argument(
         '--height',
         type=int,
         default=64,
-        help='Matrix height in pixels (default: 64)'
+        help='Matrix height in pixels (default: 64, typically multiples of 16)'
     )
 
     parser.add_argument(
         '--resolution',
         type=str,
-        choices=['64x64', '128x64'],
-        help='Shortcut for setting resolution (overrides --width and --height)'
+        choices=['64x64', '128x64', '128x128', '256x192'],
+        help='Shortcut for common resolutions (overrides --width and --height)'
     )
 
     parser.add_argument(
@@ -58,6 +57,12 @@ def parse_matrix_args(description=None):
         elif args.resolution == '128x64':
             args.width = 128
             args.height = 64
+        elif args.resolution == '128x128':
+            args.width = 128
+            args.height = 128
+        elif args.resolution == '256x192':
+            args.width = 256
+            args.height = 192
 
     # Set color mode
     args.color_mode = 'mono' if args.mono else 'rgb'

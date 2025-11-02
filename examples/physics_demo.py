@@ -12,6 +12,7 @@ import random
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.display import Display, TerminalRenderer
+from src.config import parse_matrix_args
 
 
 class Ball:
@@ -286,12 +287,13 @@ def hsv_to_rgb(h, s, v):
 
 def main():
     """Run physics demos."""
+    args = parse_matrix_args(os.path.basename(__file__).replace(".py", "").replace("_", " ").title())
     print("LED Matrix Physics Simulation")
     print("==============================\n")
 
     # RGB mode for colorful physics
     print("Creating 64x64 RGB display...\n")
-    display = Display(64, 64, color_mode='rgb')
+    display = Display(args.width, args.height, color_mode='rgb')
     renderer = TerminalRenderer(display)
 
     print("1. Bouncing Balls with Gravity")

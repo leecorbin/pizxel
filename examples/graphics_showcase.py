@@ -10,20 +10,25 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.led_api import create_matrix
+from src.config import parse_matrix_args
+from src.layout import LayoutHelper
 
 
-def demo_shapes(matrix):
+def demo_shapes(matrix, layout):
     """Show all basic shapes."""
     print("Basic Shapes")
     matrix.clear()
 
-    # Circles
-    matrix.circle(16, 16, 10, (255, 0, 0), fill=True)
-    matrix.circle(16, 16, 10, (255, 255, 255), fill=False)
+    # Circles (scaled)
+    x1, y1, r = layout.scale_x_value(16), layout.scale_y_value(16), layout.scale_x_value(10)
+    matrix.circle(x1, y1, r, (255, 0, 0), fill=True)
+    matrix.circle(x1, y1, r, (255, 255, 255), fill=False)
 
-    # Rectangle
-    matrix.rect(32, 6, 20, 20, (0, 255, 0), fill=False)
-    matrix.rect(34, 8, 16, 16, (0, 200, 0), fill=True)
+    # Rectangle (scaled)
+    x2, y2 = layout.scale_x_value(32), layout.scale_y_value(6)
+    w, h = layout.scale_x_value(20), layout.scale_y_value(20)
+    matrix.rect(x2, y2, w, h, (0, 255, 0), fill=False)
+    matrix.rect(x2+2, y2+2, w-4, h-4, (0, 200, 0), fill=True)
 
     # Triangle
     matrix.triangle(10, 40, 20, 55, 0, 55, (0, 0, 255), fill=True)
@@ -145,7 +150,9 @@ def main():
     print()
 
     # Create 64x64 RGB matrix
-    matrix = create_matrix(64, 64, 'rgb')
+    args = parse_matrix_args(os.path.basename(__file__).replace('.py', '').replace('_', ' ').title())
+    matrix = create_matrix(args.width, args.height, args.color_mode)
+    layout = LayoutHelper(matrix.width, matrix.height)
 
     print("Demonstrating graphics primitives...\n")
 

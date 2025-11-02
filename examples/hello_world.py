@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Hello World - Simple example to get started
+Works at any resolution!
 """
 
 import sys
@@ -9,22 +10,37 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.led_api import create_matrix
+from src.config import parse_matrix_args
+from src.layout import LayoutHelper
 
 
 def main():
-    # Create a 64x64 RGB LED matrix
-    matrix = create_matrix(64, 64, 'rgb')
+    # Parse command-line arguments for resolution
+    args = parse_matrix_args("Hello World Example")
+
+    # Create matrix at specified resolution
+    matrix = create_matrix(args.width, args.height, args.color_mode)
+
+    # Create layout helper for resolution-agnostic positioning
+    layout = LayoutHelper(matrix.width, matrix.height)
 
     # Clear the display
     matrix.clear()
 
-    # Draw some graphics
-    matrix.circle(32, 32, 20, (0, 100, 255), fill=True)
-    matrix.circle(32, 32, 20, (255, 255, 255), fill=False)
+    # Draw a circle in the center (scaled to resolution)
+    center_x = matrix.width // 2
+    center_y = matrix.height // 2
+    radius = layout.scale_x_value(20)  # Scale from base 64x64
 
-    # Add text
-    matrix.centered_text("HELLO", 20, (255, 255, 0))
-    matrix.centered_text("WORLD!", 35, (255, 255, 255))
+    matrix.circle(center_x, center_y, radius, (0, 100, 255), fill=True)
+    matrix.circle(center_x, center_y, radius, (255, 255, 255), fill=False)
+
+    # Add text (centered, positioned based on resolution)
+    text_y1 = center_y - layout.scale_y_value(12)
+    text_y2 = center_y + layout.scale_y_value(7)
+
+    matrix.centered_text("HELLO", text_y1, (255, 255, 0))
+    matrix.centered_text("WORLD!", text_y2, (255, 255, 255))
 
     # Show on terminal
     matrix.show()
