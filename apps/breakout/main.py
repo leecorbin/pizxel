@@ -8,7 +8,8 @@ import sys
 import os
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+# Add project root to path (go up two levels: app -> apps -> project root)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from matrixos.led_api import create_matrix
 from matrixos.input import KeyboardInput, InputEvent

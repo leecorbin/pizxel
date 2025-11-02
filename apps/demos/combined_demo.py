@@ -9,7 +9,8 @@ import os
 import time
 import math
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+# Add project root to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from matrixos.led_api import create_matrix
 from matrixos.config import parse_matrix_args

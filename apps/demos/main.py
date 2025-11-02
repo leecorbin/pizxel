@@ -23,7 +23,17 @@ def run_demo(demo_file):
         print(f"\n{'='*64}")
         print(f"Launching: {demo_file}")
         print(f"{'='*64}\n")
-        subprocess.run([sys.executable, demo_path])
+
+        # Set up environment with project root in PYTHONPATH
+        project_root = os.path.join(os.path.dirname(__file__), '..', '..')
+        project_root = os.path.abspath(project_root)
+        env = os.environ.copy()
+        if 'PYTHONPATH' in env:
+            env['PYTHONPATH'] = f"{project_root}:{env['PYTHONPATH']}"
+        else:
+            env['PYTHONPATH'] = project_root
+
+        subprocess.run([sys.executable, demo_path], env=env)
         print(f"\n{'='*64}")
         print("Demo finished. Press any key to return to menu...")
         print(f"{'='*64}\n")

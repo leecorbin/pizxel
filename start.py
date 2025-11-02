@@ -84,7 +84,20 @@ class App:
             print(f"\n{'='*64}")
             print(f"Launching: {self.name}")
             print(f"{'='*64}\n")
-            subprocess.run([sys.executable, str(main_py)])
+
+            # Get project root directory (where matrixos/ is located)
+            project_root = Path(__file__).parent
+
+            # Set up environment with PYTHONPATH including project root
+            env = os.environ.copy()
+            if 'PYTHONPATH' in env:
+                env['PYTHONPATH'] = f"{project_root}:{env['PYTHONPATH']}"
+            else:
+                env['PYTHONPATH'] = str(project_root)
+
+            # Run the app with proper environment
+            subprocess.run([sys.executable, str(main_py)], env=env)
+
             print(f"\n{'='*64}")
             print(f"{self.name} exited.")
             print(f"{'='*64}\n")

@@ -10,7 +10,8 @@ import time
 import os
 
 # Add parent directory to path so we can import src modules
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+# Add project root to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from matrixos.display import Display, TerminalRenderer
 

@@ -13,7 +13,8 @@ This is a simple drawing app:
 import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+# Add project root to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from matrixos.led_api import create_matrix
 from matrixos.input import KeyboardInput, InputEvent

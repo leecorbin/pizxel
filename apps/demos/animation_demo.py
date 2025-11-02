@@ -8,7 +8,8 @@ import time
 import os
 import math
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+# Add project root to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from matrixos.display import Display, TerminalRenderer
 from matrixos.config import parse_matrix_args
