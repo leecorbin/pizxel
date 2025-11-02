@@ -297,9 +297,27 @@ def show_keyboard(matrix, input_handler, prompt: str = "Enter text:",
     Returns:
         Entered text, or None if cancelled
     """
+    # DEBUG
+    try:
+        with open('/tmp/matrixos_debug.log', 'a') as f:
+            f.write(f"[KEYBOARD] show_keyboard() starting\n")
+            f.flush()
+    except:
+        pass
+    
     keyboard = OnScreenKeyboard(prompt, initial)
     
+    iteration = 0
     while not keyboard.done:
+        iteration += 1
+        if iteration == 1 or iteration % 10 == 0:
+            try:
+                with open('/tmp/matrixos_debug.log', 'a') as f:
+                    f.write(f"[KEYBOARD] Loop iteration {iteration}\n")
+                    f.flush()
+            except:
+                pass
+        
         # Clear screen
         matrix.clear()
         
@@ -313,6 +331,14 @@ def show_keyboard(matrix, input_handler, prompt: str = "Enter text:",
         event = input_handler.get_key(timeout=0.1)
         if event:
             keyboard.handle_input(event)
+    
+    # DEBUG
+    try:
+        with open('/tmp/matrixos_debug.log', 'a') as f:
+            f.write(f"[KEYBOARD] show_keyboard() done, cancelled={keyboard.cancelled}\n")
+            f.flush()
+    except:
+        pass
     
     if keyboard.cancelled:
         return None
