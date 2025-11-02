@@ -23,15 +23,15 @@ def parse_matrix_args(description=None):
     parser.add_argument(
         '--width',
         type=int,
-        default=64,
-        help='Matrix width in pixels (default: 64, typically multiples of 16)'
+        default=128,
+        help='Matrix width in pixels (default: 128, typically multiples of 16)'
     )
 
     parser.add_argument(
         '--height',
         type=int,
-        default=64,
-        help='Matrix height in pixels (default: 64, typically multiples of 16)'
+        default=128,
+        help='Matrix height in pixels (default: 128, typically multiples of 16)'
     )
 
     parser.add_argument(

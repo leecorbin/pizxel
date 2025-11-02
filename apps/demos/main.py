@@ -148,43 +148,50 @@ class DemosApp(App):
     # DEMO 2: Shapes
     # =========================================================================
     def demo_shapes(self, matrix):
-        """Demonstrate shape drawing."""
+        """Demonstrate shape drawing - scales to display size."""
         width = matrix.width
         height = matrix.height
+        scale = width / 64  # Scale factor (1.0 for 64×64, 2.0 for 128×128)
 
         # Title
         matrix.text("SHAPES", 2, 2, (255, 200, 0))
 
-        y_offset = 14
+        y_offset = int(14 * scale)
 
-        # Rectangle
-        matrix.rect(4, y_offset, 16, 12, (255, 0, 0), fill=False)
-        matrix.rect(6, y_offset + 2, 12, 8, (255, 100, 100), fill=True)
+        # Rectangle (scaled)
+        rect_x = int(8 * scale)
+        rect_w = int(24 * scale)
+        rect_h = int(18 * scale)
+        matrix.rect(rect_x, y_offset, rect_w, rect_h, (255, 0, 0), fill=False)
+        matrix.rect(rect_x + int(4 * scale), y_offset + int(3 * scale), 
+                   rect_w - int(8 * scale), rect_h - int(6 * scale), (255, 100, 100), fill=True)
 
-        # Circle
+        # Circle (scaled)
         cx = width // 2
-        cy = y_offset + 6
-        matrix.circle(cx, cy, 6, (0, 255, 0), fill=False)
-        matrix.circle(cx, cy, 3, (100, 255, 100), fill=True)
+        cy = y_offset + rect_h // 2
+        matrix.circle(cx, cy, int(10 * scale), (0, 255, 0), fill=False)
+        matrix.circle(cx, cy, int(5 * scale), (100, 255, 100), fill=True)
 
-        # Line
-        x_start = width - 20
-        matrix.line(x_start, y_offset, x_start + 16, y_offset + 12, (0, 100, 255))
-        matrix.line(x_start + 16, y_offset, x_start, y_offset + 12, (0, 200, 255))
+        # Line (scaled)
+        x_start = width - int(32 * scale)
+        line_len = int(24 * scale)
+        matrix.line(x_start, y_offset, x_start + line_len, y_offset + rect_h, (0, 100, 255))
+        matrix.line(x_start + line_len, y_offset, x_start, y_offset + rect_h, (0, 200, 255))
 
         # More shapes below
-        y_offset2 = y_offset + 18
+        y_offset2 = y_offset + rect_h + int(12 * scale)
 
         # Filled rectangle
-        matrix.rect(4, y_offset2, 12, 8, (255, 255, 0), fill=True)
+        matrix.rect(rect_x, y_offset2, int(18 * scale), int(12 * scale), (255, 255, 0), fill=True)
 
         # Filled circle
-        matrix.circle(cx, y_offset2 + 4, 5, (255, 0, 255), fill=True)
+        matrix.circle(cx, y_offset2 + int(6 * scale), int(8 * scale), (255, 0, 255), fill=True)
 
-        # Triangle (using lines)
-        x1, y1 = width - 16, y_offset2 + 8
-        x2, y2 = width - 8, y_offset2 + 8
-        x3, y3 = width - 12, y_offset2
+        # Triangle (using lines) - scaled
+        tri_size = int(20 * scale)
+        x1, y1 = width - int(28 * scale), y_offset2 + int(12 * scale)
+        x2, y2 = width - int(8 * scale), y_offset2 + int(12 * scale)
+        x3, y3 = width - int(18 * scale), y_offset2
         matrix.line(x1, y1, x2, y2, (0, 255, 255))
         matrix.line(x2, y2, x3, y3, (0, 255, 255))
         matrix.line(x3, y3, x1, y1, (0, 255, 255))
@@ -274,9 +281,10 @@ class DemosApp(App):
     # DEMO 5: Animation
     # =========================================================================
     def demo_animation(self, matrix):
-        """Demonstrate animation with moving objects."""
+        """Demonstrate animation with moving objects - scales to display."""
         width = matrix.width
         height = matrix.height
+        scale = width / 64  # Scale factor
 
         # Title
         matrix.text("ANIMATION", 2, 2, (255, 200, 0))
@@ -284,19 +292,19 @@ class DemosApp(App):
         center_x = width // 2
         center_y = height // 2
 
-        # Orbiting circles
+        # Orbiting circles (scaled)
         for i in range(3):
             angle = self.animation_time + (i * 2 * math.pi / 3)
-            radius = 15 + 5 * math.sin(self.animation_time * 2 + i)
+            radius = int((15 + 5 * math.sin(self.animation_time * 2 + i)) * scale)
             x = int(center_x + radius * math.cos(angle))
             y = int(center_y + radius * math.sin(angle))
 
             colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-            matrix.circle(x, y, 3, colors[i], fill=True)
+            matrix.circle(x, y, int(5 * scale), colors[i], fill=True)
 
-        # Center dot
+        # Center dot (scaled)
         pulse = int(128 + 127 * math.sin(self.animation_time * 3))
-        matrix.circle(center_x, center_y, 2, (pulse, pulse, pulse), fill=True)
+        matrix.circle(center_x, center_y, int(4 * scale), (pulse, pulse, pulse), fill=True)
 
         matrix.text("ORBITING", 2, height - 8, (100, 100, 100))
 
@@ -333,17 +341,18 @@ class DemosApp(App):
     # DEMO 7: Patterns
     # =========================================================================
     def demo_patterns(self, matrix):
-        """Demonstrate various patterns."""
+        """Demonstrate various patterns - scales to display."""
         width = matrix.width
         height = matrix.height
+        scale = width / 64  # Scale factor
 
         # Title
         matrix.text("PATTERNS", 2, 2, (255, 200, 0))
 
-        # Animated checkerboard pattern
+        # Animated checkerboard pattern (scaled)
         start_y = 14
-        square_size = 4
-        offset = int(self.animation_time * 2) % square_size
+        square_size = max(4, int(8 * scale))  # Larger squares for bigger displays
+        offset = int(self.animation_time * 2 * scale) % square_size
 
         for y in range(start_y, height - 10, square_size):
             for x in range(4, width - 4, square_size):

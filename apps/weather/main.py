@@ -3,8 +3,10 @@
 Weather App - Displays weather with background updates
 
 Demonstrates:
-- Background data fetching (updates every 5 seconds in background)
-- Notification system (alerts on weather changes)
+- Background data fetching (updates every 5 minutes)
+- Real weather API (Open-Meteo - free, no API key!)
+- On-screen keyboard for city input
+- Persistent storage for settings
 - Async data loading
 """
 
@@ -12,6 +14,9 @@ import sys
 import os
 import time
 import random
+import urllib.request
+import urllib.parse
+import json
 
 # Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -19,7 +24,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from matrixos.app_framework import App
 from matrixos.input import InputEvent
 from matrixos.async_tasks import schedule_task, TaskResult
-from matrixos import network, layout
+from matrixos import network, layout, storage, keyboard
 
 
 class WeatherApp(App):
@@ -27,27 +32,34 @@ class WeatherApp(App):
 
     def __init__(self):
         super().__init__("Weather")
-        self.location = "Cardiff, UK"
+        
+        # Load saved city or use default
+        self.location = storage.get('weather.city', default='Cardiff, UK')
+        self.latitude = storage.get('weather.latitude', default=51.48)
+        self.longitude = storage.get('weather.longitude', default=-3.18)
+        
         self.temperature = 20
         self.condition = "sunny"
         self.last_fetch = 0
-        self.fetch_interval = 300  # Fetch every 5 minutes (was 5 seconds - too aggressive!)
-        self.loading = True
+        self.fetch_interval = 300  # Fetch every 5 minutes
+        self.loading = False
         self.update_count = 0
         self.last_condition = None
-        self.use_demo_mode = True  # Set to False to use real API
+        
+        # Use real API by default (Open-Meteo is free!)
+        self.use_demo_mode = storage.get('weather.demo_mode', default=False)
 
-        # Weather conditions typical for Cardiff
+        # Weather conditions
         self.conditions = [
             ("sunny", (255, 255, 0)),
             ("cloudy", (150, 150, 150)),
-            ("rainy", (100, 100, 255)),  # Very common in Cardiff!
+            ("rainy", (100, 100, 255)),
             ("stormy", (128, 0, 128)),
         ]
 
     def get_help_text(self):
         """Return app-specific help."""
-        return [("R", "Refresh")]
+        return [("R", "Refresh"), ("C", "Change city")]
 
     def on_activate(self):
         """App becomes active."""
@@ -72,8 +84,8 @@ class WeatherApp(App):
     def fetch_weather(self):
         """Fetch weather data using async network (non-blocking!).
 
-        This method returns immediately. The actual fetch happens in
-        a background thread, and the callback updates the weather data.
+        Uses Open-Meteo API (free, no API key required!)
+        https://open-meteo.com/
         """
         if self.loading:
             return  # Already fetching
@@ -108,6 +120,7 @@ class WeatherApp(App):
                     self.condition = data['condition']
                     self.temperature = data['temperature']
                     self.update_count += 1
+                    self.dirty = True
                     
                     # Request attention for severe weather (storms)
                     if old_condition != self.condition and not self.active:
@@ -118,38 +131,68 @@ class WeatherApp(App):
             
             schedule_task(fetch_in_background, on_fetch_complete, self.name)
         else:
-            # Real API mode (requires API key and setup)
-            # Example: OpenWeatherMap API
-            # url = f"https://api.openweathermap.org/data/2.5/weather?q={self.location}&appid=YOUR_KEY&units=metric"
+            # Real API mode using Open-Meteo (free!)
+            def fetch_in_background():
+                """Fetch from Open-Meteo API."""
+                try:
+                    # Open-Meteo API endpoint
+                    url = f"https://api.open-meteo.com/v1/forecast?latitude={self.latitude}&longitude={self.longitude}&current=temperature_2m,weathercode&timezone=auto"
+                    
+                    req = urllib.request.Request(url)
+                    req.add_header('User-Agent', 'MatrixOS/1.0')
+                    
+                    with urllib.request.urlopen(req, timeout=10) as response:
+                        data = json.loads(response.read().decode())
+                    
+                    # Parse response
+                    current = data.get('current', {})
+                    temp = current.get('temperature_2m', 20)
+                    weather_code = current.get('weathercode', 0)
+                    
+                    # Map WMO weather codes to our conditions
+                    # https://open-meteo.com/en/docs
+                    if weather_code in [0, 1]:  # Clear/mainly clear
+                        condition = 'sunny'
+                    elif weather_code in [2, 3]:  # Partly cloudy/overcast
+                        condition = 'cloudy'
+                    elif weather_code in [51, 53, 55, 61, 63, 65, 80, 81, 82]:  # Rain
+                        condition = 'rainy'
+                    elif weather_code in [95, 96, 99]:  # Thunderstorm
+                        condition = 'stormy'
+                    else:
+                        condition = 'cloudy'
+                    
+                    return {
+                        'temperature': int(temp),
+                        'condition': condition
+                    }
+                
+                except Exception as e:
+                    raise Exception(f"Weather API error: {e}")
             
-            def on_weather_response(result: TaskResult):
+            def on_fetch_complete(result: TaskResult):
                 """Called when API response arrives."""
                 self.loading = False
                 
                 if result.success:
-                    data = result.value
-                    # Parse API response (adjust for your API format)
-                    self.temperature = int(data.get('main', {}).get('temp', 20))
-                    weather_main = data.get('weather', [{}])[0].get('main', 'Clear').lower()
+                    data = result.result
+                    old_condition = self.condition
                     
-                    # Map API weather to our conditions
-                    if 'rain' in weather_main or 'drizzle' in weather_main:
-                        self.condition = 'rainy'
-                    elif 'cloud' in weather_main:
-                        self.condition = 'cloudy'
-                    elif 'thunder' in weather_main or 'storm' in weather_main:
-                        self.condition = 'stormy'
-                    else:
-                        self.condition = 'sunny'
-                    
+                    self.temperature = data['temperature']
+                    self.condition = data['condition']
                     self.update_count += 1
                     self.dirty = True
+                    
+                    # Request attention for severe weather
+                    if old_condition != self.condition and not self.active:
+                        if self.condition == "stormy":
+                            self.request_attention(priority='normal')
                 else:
-                    print(f"Weather API error: {result.error}")
+                    print(f"Weather fetch failed: {result.error}")
+                    # Fall back to demo mode if API fails
+                    self.use_demo_mode = True
             
-            # Uncomment to use real API:
-            # network.get_json(url, callback=on_weather_response, timeout=5.0)
-            pass
+            schedule_task(fetch_in_background, on_fetch_complete, self.name)
 
     def on_event(self, event):
         """Handle input."""
@@ -157,7 +200,84 @@ class WeatherApp(App):
             # Manual refresh
             self.fetch_weather()
             return True
+        elif event.key == 'c' or event.key == 'C':
+            # Change city
+            self.change_city()
+            return True
         return False
+    
+    def change_city(self):
+        """Open keyboard to change city."""
+        # This needs to be called from the main event loop
+        # We'll set a flag that the OS can check
+        self.needs_keyboard = True
+        self.dirty = True
+    
+    def handle_city_input(self, matrix, input_handler):
+        """Handle city input with keyboard (called by OS if needed)."""
+        new_city = keyboard.show_keyboard(
+            matrix, input_handler,
+            prompt="Enter city:",
+            initial=self.location
+        )
+        
+        if new_city and new_city != self.location:
+            # Geocode the city to get coordinates
+            self.geocode_city(new_city)
+        
+        self.needs_keyboard = False
+        self.dirty = True
+    
+    def geocode_city(self, city_name: str):
+        """Convert city name to coordinates using geocoding."""
+        def geocode_in_background():
+            """Geocode city name."""
+            try:
+                # Use Open-Meteo geocoding API (free!)
+                query = urllib.parse.quote(city_name)
+                url = f"https://geocoding-api.open-meteo.com/v1/search?name={query}&count=1&language=en&format=json"
+                
+                req = urllib.request.Request(url)
+                req.add_header('User-Agent', 'MatrixOS/1.0')
+                
+                with urllib.request.urlopen(req, timeout=10) as response:
+                    data = json.loads(response.read().decode())
+                
+                if 'results' in data and len(data['results']) > 0:
+                    result = data['results'][0]
+                    return {
+                        'name': result.get('name', city_name),
+                        'country': result.get('country', ''),
+                        'latitude': result.get('latitude'),
+                        'longitude': result.get('longitude')
+                    }
+                else:
+                    raise Exception("City not found")
+            
+            except Exception as e:
+                raise Exception(f"Geocoding error: {e}")
+        
+        def on_geocode_complete(result: TaskResult):
+            """Update location when geocoding completes."""
+            if result.success:
+                data = result.result
+                self.location = f"{data['name']}, {data['country']}"
+                self.latitude = data['latitude']
+                self.longitude = data['longitude']
+                
+                # Save to storage
+                storage.set('weather.city', self.location)
+                storage.set('weather.latitude', self.latitude)
+                storage.set('weather.longitude', self.longitude)
+                
+                # Fetch weather for new location
+                self.fetch_weather()
+            else:
+                print(f"Geocoding failed: {result.error}")
+            
+            self.dirty = True
+        
+        schedule_task(geocode_in_background, on_geocode_complete, self.name)
 
     def render(self, matrix):
         """Draw weather UI - responsive to screen size!"""

@@ -20,6 +20,7 @@ class App:
         self.os = None  # Set by OS when registered
         self.active = False
         self.dirty = True  # Needs redraw?
+        self.needs_keyboard = False  # Request on-screen keyboard
 
     def get_help_text(self):
         """Return list of (key, description) tuples for app-specific controls.
@@ -322,6 +323,14 @@ class OSContext:
             if self.attention_queue:
                 priority, app = self.attention_queue.pop(0)
                 self.switch_to_app(app)
+            
+            # Handle keyboard requests (apps needing text input)
+            if self.active_app and getattr(self.active_app, 'needs_keyboard', False):
+                if hasattr(self.active_app, 'handle_city_input'):
+                    # Weather app special handling
+                    self.active_app.handle_city_input(self.matrix, self.input)
+                # Mark as no longer dirty since keyboard just rendered
+                self.active_app.dirty = True
 
             # Update active app
             if self.active_app:
