@@ -140,7 +140,7 @@ class FroggerGame(App):
     
     def reset_level(self, width, height):
         """Reset level with screen dimensions."""
-        self.grid_size = 8
+        self.grid_size = 12  # Increased from 8 for faster frog movement
         self.width = width
         self.height = height
         
@@ -173,21 +173,21 @@ class FroggerGame(App):
         road_y = road_start_y + 2
         for i in range(3):
             x = i * (width // 3) + random.randint(0, 20)
-            speed = 30 + self.level * 5
+            speed = 15 + self.level * 3  # Reduced from 30 + level * 5
             self.vehicles.append(Vehicle(x, road_y, 16, speed, (255, 0, 0)))
         
         # Lane 2: Trucks moving left
         road_y += lane_height
         for i in range(2):
             x = i * (width // 2) + random.randint(0, 30)
-            speed = -(25 + self.level * 5)
+            speed = -(12 + self.level * 3)  # Reduced from 25 + level * 5
             self.vehicles.append(Vehicle(x, road_y, 24, speed, (0, 100, 255)))
         
         # Lane 3: Fast cars moving right
         road_y += lane_height
         for i in range(4):
             x = i * (width // 4) + random.randint(0, 15)
-            speed = 40 + self.level * 8
+            speed = 20 + self.level * 4  # Reduced from 40 + level * 8
             self.vehicles.append(Vehicle(x, road_y, 12, speed, (255, 255, 0)))
         
         # Create river lanes (middle section: y=32-68)
@@ -199,21 +199,21 @@ class FroggerGame(App):
         river_y = river_start_y + 2
         for i in range(3):
             x = i * (width // 3) + random.randint(0, 20)
-            speed = 20
+            speed = 10  # Reduced from 20
             self.logs.append(Log(x, river_y, 30, speed))
         
         # Log lane 2 (moving left)
         river_y += lane_height
         for i in range(2):
             x = i * (width // 2) + random.randint(0, 40)
-            speed = -25
+            speed = -12  # Reduced from -25
             self.logs.append(Log(x, river_y, 40, speed))
         
         # Log lane 3
         river_y += lane_height
         for i in range(3):
             x = i * (width // 3) + random.randint(0, 25)
-            speed = 22
+            speed = 11  # Reduced from 22
             self.logs.append(Log(x, river_y, 35, speed))
     
     def on_event(self, event):

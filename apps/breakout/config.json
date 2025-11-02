@@ -1,0 +1,8 @@
+{
+  "name": "Breakout",
+  "version": "1.0.0",
+  "description": "Classic brick-breaking arcade game",
+  "author": "MatrixOS Team",
+  "main": "main.py",
+  "icon": "icon.json"
+}

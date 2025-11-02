@@ -1,0 +1,8 @@
+{
+  "name": "Snake",
+  "version": "1.0.0",
+  "description": "Classic snake game - eat, grow, avoid yourself!",
+  "author": "MatrixOS Team",
+  "main": "main.py",
+  "icon": "icon.json"
+}

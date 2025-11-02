@@ -99,12 +99,16 @@ class Ghost:
         self.dy = 0
         self.speed = 1.5
         self.mode = "scatter"  # "scatter", "chase", "frightened"
-        self.mode_timer = 0
+        self.mode_timer = 180  # Start with scatter mode timer
         self.frightened_timer = 0
         self.is_eaten = False
         
     def update(self, pacman, maze, game_time):
         """Move ghost with AI."""
+        # Debug: log once per ghost
+        if game_time == 5 and self.name == "Blinky":
+            print(f"[DEBUG] Ghost {self.name} at ({self.x}, {self.y}) mode={self.mode}")
+        
         if self.is_eaten:
             # Return to spawn
             target_x, target_y = self.start_x, self.start_y
@@ -323,7 +327,7 @@ class PacManGame(App):
             Ghost("Blinky", 64, 8, (255, 0, 0), (112, 8)),       # Row 1, col 8 - top center
             Ghost("Pinky", 16, 32, (255, 184, 255), (16, 8)),    # Row 4, col 2 - left side
             Ghost("Inky", 112, 32, (0, 255, 255), (112, 120)),   # Row 4, col 14 - right side
-            Ghost("Clyde", 64, 72, (255, 184, 82), (16, 120)),   # Row 9, col 8 - middle
+            Ghost("Clyde", 16, 72, (255, 184, 82), (16, 120)),   # Row 9, col 2 - left corridor
         ]
         
         # Game state
