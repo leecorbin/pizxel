@@ -306,12 +306,7 @@ class OSContext:
                         if self.active_app:
                             self.active_app.dirty = True
                 else:
-                    # Give event to active app first
-                    handled = False
-                    if self.active_app:
-                        handled = self.active_app.on_event(event)
-
-                    # HOME always returns to launcher (like iOS home button)
+                    # HOME always returns to launcher (like iOS home button) - check FIRST
                     if event.key == InputEvent.HOME:
                         if self.launcher:
                             self.switch_to_app(self.launcher)
@@ -320,8 +315,18 @@ class OSContext:
                             self.running = False
                             continue
                     
+                    # Give event to active app
+                    handled = False
+                    if self.active_app:
+                        # DEBUG: Print what event the app is receiving
+                        if event.key in ['c', 'C', 'r', 'R']:
+                            print(f"[DEBUG] App {self.active_app.name} receiving event: {event.key}")
+                        handled = self.active_app.on_event(event)
+                        if event.key in ['c', 'C', 'r', 'R']:
+                            print(f"[DEBUG] App handled={handled}, needs_keyboard={getattr(self.active_app, 'needs_keyboard', False)}")
+                    
                     # If app didn't handle BACK, let it bubble up (exit to launcher)
-                    elif not handled and event.key == InputEvent.BACK:
+                    if not handled and event.key == InputEvent.BACK:
                         if self.launcher:
                             self.switch_to_app(self.launcher)
                         else:
