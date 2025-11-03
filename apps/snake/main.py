@@ -74,7 +74,7 @@ class SnakeGame(App):
         self.on_activate()
         audio.play('beep')
     
-    def on_input(self, event):
+    def on_event(self, event):
         """Handle input."""
         if event.key == InputEvent.BACK or event.key == InputEvent.HOME:
             return False  # Exit app
@@ -211,6 +211,18 @@ class SnakeGame(App):
                                "Press R to restart")
         
         self.dirty = False
+
+
+def run(os_context):
+    """Run Snake game within MatrixOS framework."""
+    app = SnakeGame()
+    os_context.register_app(app)
+    os_context.switch_to_app(app)
+    os_context.run()
+
+
+# App instance for launcher
+app = SnakeGame()
 
 
 def main():
