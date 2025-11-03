@@ -3,24 +3,83 @@ MatrixOS System Configuration
 
 Manages system-wide configuration set by installer/admin.
 Separate from user settings which are managed in the Settings app.
+
+Configuration strategy:
+- Template in repo: matrixos/system_config.json (tracked, updated on git pull)
+- Runtime config: settings/config/system_config.json or ~/settings/config/system_config.json (ignored)
+- On first run: copies template to runtime location
+- On updates: merges template with user config (user values win)
 """
 
 import os
 import json
+import shutil
 from pathlib import Path
 
 
 _config_cache = None
 
 
-def get_system_config_path():
-    """Get path to system config file."""
-    matrixos_dir = Path(__file__).parent
-    return matrixos_dir / "system_config.json"
+def get_project_root():
+    """Get project root directory."""
+    return Path(__file__).parent.parent
+
+
+def get_template_config_path():
+    """Get path to template system config in repo."""
+    return get_project_root() / "matrixos" / "system_config.json"
+
+
+def get_runtime_config_path():
+    """Get path to runtime system config (user's actual config).
+    
+    Tries in order:
+    1. PROJECT_ROOT/settings/config/system_config.json (local to project)
+    2. ~/settings/config/system_config.json (user's home directory)
+    """
+    # Try local settings first
+    local_settings = get_project_root() / "settings" / "config" / "system_config.json"
+    if local_settings.parent.exists() or not Path.home().exists():
+        return local_settings
+    
+    # Fall back to home directory
+    return Path.home() / "settings" / "config" / "system_config.json"
+
+
+def deep_merge(template, user):
+    """Deep merge user config into template config.
+    
+    User values override template, but new keys from template are added.
+    
+    Args:
+        template: Default configuration dict
+        user: User's configuration dict
+        
+    Returns:
+        Merged configuration dict
+    """
+    result = template.copy()
+    
+    for key, value in user.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            # Recursively merge nested dicts
+            result[key] = deep_merge(result[key], value)
+        else:
+            # User value wins
+            result[key] = value
+    
+    return result
 
 
 def load_system_config():
     """Load system configuration with defaults.
+    
+    Strategy:
+    1. Load template from repo (matrixos/system_config.json)
+    2. Check if runtime config exists
+    3. If not: copy template to runtime location (first run)
+    4. If yes: merge template with runtime (picks up new settings from updates)
+    5. Save merged config back to runtime location
     
     Returns:
         dict: System configuration
@@ -30,12 +89,58 @@ def load_system_config():
     if _config_cache is not None:
         return _config_cache
     
-    # Default configuration
-    default_config = {
+    template_path = get_template_config_path()
+    runtime_path = get_runtime_config_path()
+    
+    # Load template
+    try:
+        with open(template_path, 'r') as f:
+            template_config = json.load(f)
+    except Exception as e:
+        print(f"Warning: Could not load template config: {e}")
+        template_config = _get_default_config()
+    
+    # First run - copy template to runtime
+    if not runtime_path.exists():
+        runtime_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.copy(template_path, runtime_path)
+            print(f"✅ Created runtime config: {runtime_path}")
+        except Exception as e:
+            print(f"Warning: Could not create runtime config: {e}")
+        
+        _config_cache = template_config
+        return template_config
+    
+    # Load existing runtime config
+    try:
+        with open(runtime_path, 'r') as f:
+            runtime_config = json.load(f)
+    except Exception as e:
+        print(f"Warning: Could not load runtime config: {e}")
+        runtime_config = {}
+    
+    # Merge template with runtime (user values win, new keys added)
+    merged_config = deep_merge(template_config, runtime_config)
+    
+    # Save merged config back (picks up new settings from updates)
+    try:
+        with open(runtime_path, 'w') as f:
+            json.dump(merged_config, f, indent=2)
+    except Exception as e:
+        print(f"Warning: Could not save merged config: {e}")
+    
+    _config_cache = merged_config
+    return merged_config
+
+
+def _get_default_config():
+    """Get hardcoded default configuration (fallback)."""
+    return {
         "version": "1.0",
         "system": {
             "emoji_download_enabled": True,
-            "emoji_cache_dir": "~/.matrixos/emoji_cache"
+            "emoji_cache_dir": "settings/cache"
         },
         "display": {
             "default_width": 128,
@@ -47,40 +152,21 @@ def load_system_config():
             "allow_background_apps": True
         }
     }
-    
-    config_path = get_system_config_path()
-    
-    if config_path.exists():
-        try:
-            with open(config_path, 'r') as f:
-                loaded_config = json.load(f)
-            
-            # Merge with defaults (in case new keys added)
-            config = default_config.copy()
-            config.update(loaded_config)
-            
-            _config_cache = config
-            return config
-        except Exception as e:
-            print(f"Warning: Could not load system config: {e}")
-            print("Using defaults")
-    
-    _config_cache = default_config
-    return default_config
 
 
 def save_system_config(config):
-    """Save system configuration.
+    """Save system configuration to runtime location.
     
     Args:
         config: Configuration dict to save
     """
     global _config_cache
     
-    config_path = get_system_config_path()
+    runtime_path = get_runtime_config_path()
+    runtime_path.parent.mkdir(parents=True, exist_ok=True)
     
     try:
-        with open(config_path, 'w') as f:
+        with open(runtime_path, 'w') as f:
             json.dump(config, f, indent=2)
         
         _config_cache = config
@@ -154,8 +240,14 @@ def set_emoji_download_enabled(enabled):
 
 def get_emoji_cache_dir():
     """Get emoji cache directory path."""
-    cache_dir = get_setting('system.emoji_cache_dir', '~/.matrixos/emoji_cache')
-    return Path(cache_dir).expanduser()
+    cache_dir = get_setting('system.emoji_cache_dir', 'settings/cache')
+    cache_path = Path(cache_dir)
+    
+    # If relative path, make it relative to project root
+    if not cache_path.is_absolute():
+        cache_path = get_project_root() / cache_path
+    
+    return cache_path
 
 
 if __name__ == '__main__':

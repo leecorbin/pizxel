@@ -42,3 +42,12 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# MatrixOS User Content (do not track)
+# User apps directory (keep .gitkeep)
+apps/*
+!apps/.gitkeep
+
+# Runtime settings and cache
+settings/*
+!settings/.gitkeep

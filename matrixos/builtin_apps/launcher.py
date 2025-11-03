@@ -309,6 +309,7 @@ class Launcher:
         self.apps_base_dir = Path(apps_base_dir) if apps_base_dir else Path(__file__).parent.parent.parent
         self.apps = []
         self.selected_index = 0
+        self.current_page = 0  # For pagination
         
         # Use responsive icon sizing!
         self.icon_size = layout.get_icon_size(matrix)  # 16 for 64×64, 32 for 128×128
@@ -317,22 +318,37 @@ class Launcher:
         # Calculate grid layout
         self.grid_width = (matrix.width + self.padding) // (self.icon_size + self.padding)
         self.grid_height = (matrix.height - 10 + self.padding) // (self.icon_size + self.padding)  # Reserve 10px for text at bottom
+        self.apps_per_page = self.grid_width * self.grid_height
 
         self._discover_apps()
 
     def _discover_apps(self):
-        """Discover all valid apps in the apps/ directory and root."""
-        # Check apps/ directory
-        apps_dir = self.apps_base_dir / "apps"
-        if apps_dir.exists():
-            for folder in sorted(apps_dir.iterdir()):
+        """Discover all valid apps from multiple directories.
+        
+        Scans in order:
+        1. examples/ - Shipped example apps (games, demos)
+        2. apps/ - User apps
+        3. matrixos/apps/ - System apps (Settings) - listed last
+        """
+        # Example apps first (examples/)
+        examples_dir = self.apps_base_dir / "examples"
+        if examples_dir.exists():
+            for folder in sorted(examples_dir.iterdir()):
                 if folder.is_dir() and self._is_valid_app(folder):
                     self.apps.append(App(folder))
-
-        # Also check root directory for app folders
-        for folder in sorted(self.apps_base_dir.iterdir()):
-            if folder.is_dir() and folder.name not in ['apps', 'matrixos', 'examples', 'tests', 'venv', '.git', 'docs']:
-                if self._is_valid_app(folder):
+        
+        # User apps second (apps/)
+        user_apps_dir = self.apps_base_dir / "apps"
+        if user_apps_dir.exists():
+            for folder in sorted(user_apps_dir.iterdir()):
+                if folder.is_dir() and self._is_valid_app(folder):
+                    self.apps.append(App(folder))
+        
+        # System apps last (matrixos/apps/) - Settings at the end
+        system_apps_dir = self.apps_base_dir / "matrixos" / "apps"
+        if system_apps_dir.exists():
+            for folder in sorted(system_apps_dir.iterdir()):
+                if folder.is_dir() and self._is_valid_app(folder):
                     self.apps.append(App(folder))
 
     def _is_valid_app(self, folder_path):
@@ -346,19 +362,24 @@ class Launcher:
         self.matrix.clear()
         self.matrix.fill((0, 0, 0))
 
-        # Draw app icons in grid
-        for idx, app in enumerate(self.apps):
-            if idx >= self.grid_width * self.grid_height:
-                break  # Don't draw more than can fit
+        # Calculate pagination
+        total_pages = (len(self.apps) + self.apps_per_page - 1) // self.apps_per_page
+        start_idx = self.current_page * self.apps_per_page
+        end_idx = min(start_idx + self.apps_per_page, len(self.apps))
+        page_apps = self.apps[start_idx:end_idx]
 
-            row = idx // self.grid_width
-            col = idx % self.grid_width
+        # Draw app icons in grid
+        for page_idx, app in enumerate(page_apps):
+            actual_idx = start_idx + page_idx
+            
+            row = page_idx // self.grid_width
+            col = page_idx % self.grid_width
 
             x = col * (self.icon_size + self.padding) + self.padding
             y = row * (self.icon_size + self.padding) + self.padding
 
             # Draw selection box
-            if idx == self.selected_index:
+            if actual_idx == self.selected_index:
                 self.matrix.rect(x - 1, y - 1, self.icon_size + 2, self.icon_size + 2, (255, 255, 0), fill=False)
 
             # Draw icon (passing size for scaling!)
@@ -368,7 +389,14 @@ class Launcher:
         if 0 <= self.selected_index < len(self.apps):
             selected_app = self.apps[self.selected_index]
             text_y = self.matrix.height - 8
-            layout.center_text(self.matrix, selected_app.name.upper(), text_y, (255, 255, 255))
+            
+            # Show page indicator if multiple pages
+            total_pages = (len(self.apps) + self.apps_per_page - 1) // self.apps_per_page
+            if total_pages > 1:
+                page_text = f"{selected_app.name.upper()} ({self.current_page + 1}/{total_pages})"
+                layout.center_text(self.matrix, page_text, text_y, (255, 255, 255))
+            else:
+                layout.center_text(self.matrix, selected_app.name.upper(), text_y, (255, 255, 255))
 
         self.matrix.show()
 
@@ -387,26 +415,48 @@ class Launcher:
             event = self.input_handler.get_key(timeout=0.1)
 
             if event:
+                # Calculate current page bounds
+                total_pages = (len(self.apps) + self.apps_per_page - 1) // self.apps_per_page
+                page_start = self.current_page * self.apps_per_page
+                page_end = min(page_start + self.apps_per_page, len(self.apps))
+                page_size = page_end - page_start
+                
+                # Get position within current page
+                page_index = self.selected_index - page_start
+                page_row = page_index // self.grid_width
+                page_col = page_index % self.grid_width
+                
                 if event.key == 'UP':
-                    new_row = (self.selected_index // self.grid_width) - 1
-                    if new_row >= 0:
+                    if page_row > 0:
                         self.selected_index -= self.grid_width
                         needs_redraw = True
 
                 elif event.key == 'DOWN':
-                    new_row = (self.selected_index // self.grid_width) + 1
-                    if new_row * self.grid_width < len(self.apps):
-                        self.selected_index = min(self.selected_index + self.grid_width, len(self.apps) - 1)
+                    new_index = self.selected_index + self.grid_width
+                    if new_index < page_end:
+                        self.selected_index = new_index
                         needs_redraw = True
 
                 elif event.key == 'LEFT':
-                    if self.selected_index % self.grid_width > 0:
+                    if page_col > 0:
                         self.selected_index -= 1
                         needs_redraw = True
 
                 elif event.key == 'RIGHT':
-                    if self.selected_index % self.grid_width < self.grid_width - 1 and self.selected_index < len(self.apps) - 1:
+                    if page_col < self.grid_width - 1 and self.selected_index < page_end - 1:
                         self.selected_index += 1
+                        needs_redraw = True
+                
+                elif event.key == InputEvent.L1:  # Previous page
+                    if self.current_page > 0:
+                        self.current_page -= 1
+                        self.selected_index = self.current_page * self.apps_per_page
+                        needs_redraw = True
+                
+                elif event.key == InputEvent.R1:  # Next page
+                    if self.current_page < total_pages - 1:
+                        self.current_page += 1
+                        self.selected_index = self.current_page * self.apps_per_page
                         needs_redraw = True
 
                 elif event.key == 'OK':  # Enter key maps to OK
