@@ -23,15 +23,15 @@ def parse_matrix_args(description=None):
     parser.add_argument(
         '--width',
         type=int,
-        default=128,
-        help='Matrix width in pixels (default: 128, typically multiples of 16)'
+        default=256,
+        help='Matrix width in pixels (default: 256 for ZX Spectrum standard)'
     )
 
     parser.add_argument(
         '--height',
         type=int,
-        default=128,
-        help='Matrix height in pixels (default: 128, typically multiples of 16)'
+        default=192,
+        help='Matrix height in pixels (default: 192 for ZX Spectrum standard)'
     )
 
     parser.add_argument(

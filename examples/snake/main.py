@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Snake Game - Classic snake game
+Snake Game - Classic snake game (Enhanced for 256×192 ZX Spectrum resolution)
 
 Features:
 - Grow by eating food
@@ -8,6 +8,9 @@ Features:
 - Progressive difficulty (speed increases)
 - High score tracking
 - Sound effects
+- Beautiful retro border with ZX Spectrum aesthetic
+- Larger play area with decorative frame
+- Enhanced visual feedback
 """
 
 import sys
@@ -23,7 +26,7 @@ from matrixos import layout, storage, audio
 
 
 class SnakeGame(App):
-    """Classic Snake game."""
+    """Classic Snake game - Enhanced for 256×192."""
     
     def __init__(self):
         super().__init__("Snake")
@@ -39,15 +42,25 @@ class SnakeGame(App):
         self.update_timer = 0
         self.update_speed = 8  # Frames between updates (lower = faster)
         self.food_blink = 0
+        self.segment_size = 6  # Larger segments for 256×192
+        self.play_x = 8  # Play area offset
+        self.play_y = 18  # Below HUD
+        self.play_width = 240  # Play area width
+        self.play_height = 168  # Play area height
         
     def on_activate(self):
         """Initialize game."""
-        # Snake starts in center, moving right
-        start_x, start_y = 64, 64
+        # Snake starts in center of play area, moving right
+        start_x = self.play_x + self.play_width // 2
+        start_y = self.play_y + self.play_height // 2
+        # Align to grid
+        start_x = (start_x // self.segment_size) * self.segment_size
+        start_y = (start_y // self.segment_size) * self.segment_size
+        
         self.snake = [
             (start_x, start_y),
-            (start_x - 4, start_y),
-            (start_x - 8, start_y),
+            (start_x - self.segment_size, start_y),
+            (start_x - self.segment_size * 2, start_y),
         ]
         self.direction = (1, 0)
         self.next_direction = (1, 0)
@@ -61,10 +74,11 @@ class SnakeGame(App):
         self.dirty = True
         
     def spawn_food(self):
-        """Spawn food at random location."""
+        """Spawn food at random location within play area."""
         while True:
-            x = random.randint(2, 125) & ~3  # Align to 4-pixel grid
-            y = random.randint(2, 125) & ~3
+            # Generate position within play area, aligned to grid
+            x = random.randint(0, (self.play_width // self.segment_size) - 1) * self.segment_size + self.play_x
+            y = random.randint(0, (self.play_height // self.segment_size) - 1) * self.segment_size + self.play_y
             if (x, y) not in self.snake:
                 self.food = (x, y)
                 break
@@ -122,11 +136,16 @@ class SnakeGame(App):
             
             # Move snake
             head_x, head_y = self.snake[0]
-            new_head = (head_x + self.direction[0] * 4, head_y + self.direction[1] * 4)
+            new_head = (
+                head_x + self.direction[0] * self.segment_size, 
+                head_y + self.direction[1] * self.segment_size
+            )
             
-            # Check wall collision
-            if (new_head[0] < 0 or new_head[0] >= 128 or
-                new_head[1] < 0 or new_head[1] >= 128):
+            # Check wall collision (with play area bounds)
+            if (new_head[0] < self.play_x or 
+                new_head[0] >= self.play_x + self.play_width or
+                new_head[1] < self.play_y or 
+                new_head[1] >= self.play_y + self.play_height):
                 self.game_over = True
                 audio.play('gameover')
                 if self.score > self.high_score:
@@ -157,8 +176,8 @@ class SnakeGame(App):
                 if self.update_speed > 2:
                     self.update_speed = max(2, self.update_speed - 0.3)
                 
-                # Check win condition (snake fills most of the screen)
-                if len(self.snake) > 200:
+                # Check win condition (snake fills significant portion - 3× more space at 256×192)
+                if len(self.snake) > 600:
                     self.won = True
                     audio.play('success')
                     if self.score > self.high_score:
@@ -172,43 +191,113 @@ class SnakeGame(App):
                 self.snake.pop()
     
     def render(self, matrix):
-        """Render game."""
+        """Render game with beautiful ZX Spectrum aesthetic."""
         matrix.clear()
         
-        # Draw border
-        matrix.rect(0, 0, 128, 128, (80, 80, 80), fill=False)
+        # Background - dark blue like ZX Spectrum
+        matrix.rect(0, 0, 256, 192, (0, 0, 40), fill=True)
         
-        # Draw snake
+        # === DECORATIVE BORDER (ZX Spectrum style) ===
+        # Outer frame - bright cyan
+        matrix.rect(0, 0, 256, 192, (0, 255, 255), fill=False)
+        matrix.rect(1, 1, 254, 190, (0, 255, 255), fill=False)
+        
+        # Corner decorations
+        for x, y in [(2, 2), (251, 2), (2, 187), (251, 187)]:
+            matrix.rect(x, y, 3, 3, (255, 255, 0), fill=True)
+        
+        # === HUD BAR ===
+        matrix.rect(0, 0, 256, 16, (0, 0, 80), fill=True)
+        matrix.line(0, 16, 255, 16, (0, 255, 255))
+        matrix.line(0, 17, 255, 17, (0, 255, 255))
+        
+        # Score display
+        matrix.text(f"SCORE:", 8, 4, (255, 255, 255))
+        matrix.text(f"{self.score:05d}", 64, 4, (255, 255, 0))
+        
+        # High score
+        matrix.text(f"HI:", 140, 4, (255, 200, 0))
+        matrix.text(f"{self.high_score:05d}", 172, 4, (255, 255, 0))
+        
+        # Length indicator
+        matrix.text(f"LEN:{len(self.snake)}", 220, 4, (0, 255, 255))
+        
+        # === PLAY AREA FRAME ===
+        # Inner play area border - magenta
+        play_border = (255, 0, 255)
+        matrix.rect(self.play_x - 2, self.play_y - 2, 
+                   self.play_width + 4, self.play_height + 4, 
+                   play_border, fill=False)
+        matrix.rect(self.play_x - 1, self.play_y - 1, 
+                   self.play_width + 2, self.play_height + 2, 
+                   play_border, fill=False)
+        
+        # Play area background - slightly lighter
+        matrix.rect(self.play_x, self.play_y, 
+                   self.play_width, self.play_height, 
+                   (0, 0, 60), fill=True)
+        
+        # === SNAKE ===
         for i, (x, y) in enumerate(self.snake):
             if i == 0:
-                # Head - yellow
-                matrix.rect(x, y, 4, 4, (255, 255, 0), fill=True)
+                # Head - bright yellow with eyes
+                matrix.rect(x, y, self.segment_size, self.segment_size, 
+                          (255, 255, 0), fill=True)
+                # Add simple eyes based on direction
+                if self.direction == (1, 0):  # Right
+                    matrix.set_pixel(x + 4, y + 1, (0, 0, 0))
+                    matrix.set_pixel(x + 4, y + 4, (0, 0, 0))
+                elif self.direction == (-1, 0):  # Left
+                    matrix.set_pixel(x + 1, y + 1, (0, 0, 0))
+                    matrix.set_pixel(x + 1, y + 4, (0, 0, 0))
+                elif self.direction == (0, -1):  # Up
+                    matrix.set_pixel(x + 1, y + 1, (0, 0, 0))
+                    matrix.set_pixel(x + 4, y + 1, (0, 0, 0))
+                else:  # Down
+                    matrix.set_pixel(x + 1, y + 4, (0, 0, 0))
+                    matrix.set_pixel(x + 4, y + 4, (0, 0, 0))
             else:
-                # Body - green (gradient)
+                # Body - green with gradient and scale pattern
                 intensity = max(100, 255 - i * 2)
-                matrix.rect(x, y, 4, 4, (0, intensity, 0), fill=True)
+                matrix.rect(x, y, self.segment_size, self.segment_size, 
+                          (0, intensity, 0), fill=True)
+                # Add scale texture
+                if i % 2 == 0:
+                    matrix.rect(x + 1, y + 1, self.segment_size - 2, self.segment_size - 2,
+                              (0, min(255, intensity + 30), 0), fill=True)
         
-        # Draw food (blinking)
+        # === FOOD ===
         if self.food and self.food_blink % 20 < 15:
             fx, fy = self.food
-            matrix.rect(fx, fy, 4, 4, (255, 0, 0), fill=True)
+            # Pulsing apple effect
+            pulse = (self.food_blink % 20) / 20.0
+            size = self.segment_size
+            # Red apple with highlight
+            matrix.rect(fx, fy, size, size, (255, 0, 0), fill=True)
+            matrix.rect(fx + 1, fy + 1, 2, 2, (255, 100, 100), fill=True)  # Highlight
         
-        # HUD - top area
-        matrix.rect(0, 0, 128, 10, (0, 0, 30), fill=True)
-        matrix.text(f"Score:{self.score}", 2, 1, (255, 255, 255))
-        matrix.text(f"Hi:{self.high_score}", 75, 1, (255, 200, 0))
-        
-        # Game over
+        # === GAME OVER / WIN OVERLAYS ===
         if self.game_over:
-            layout.message_box(matrix, "GAME OVER", 
-                               f"Score: {self.score}",
-                               "Press R to restart")
+            # Semi-transparent overlay
+            matrix.rect(48, 64, 160, 64, (0, 0, 0), fill=True)
+            matrix.rect(48, 64, 160, 64, (255, 0, 0), fill=False)
+            matrix.rect(49, 65, 158, 62, (255, 0, 0), fill=False)
+            
+            # Game over text
+            matrix.text("GAME OVER", 80, 76, (255, 0, 0))
+            matrix.text(f"Score: {self.score}", 90, 92, (255, 255, 255))
+            matrix.text("Press R to restart", 62, 108, (200, 200, 200))
         
-        # Won
         if self.won:
-            layout.message_box(matrix, "YOU WIN!", 
-                               f"Score: {self.score}",
-                               "Press R to restart")
+            # Semi-transparent overlay
+            matrix.rect(48, 64, 160, 64, (0, 0, 0), fill=True)
+            matrix.rect(48, 64, 160, 64, (255, 255, 0), fill=False)
+            matrix.rect(49, 65, 158, 62, (255, 255, 0), fill=False)
+            
+            # Win text
+            matrix.text("CHAMPION!", 82, 76, (255, 255, 0))
+            matrix.text(f"Final: {self.score}", 90, 92, (255, 255, 255))
+            matrix.text("Press R to restart", 62, 108, (200, 200, 200))
         
         self.dirty = False
 
@@ -230,16 +319,22 @@ def main():
     from matrixos.led_api import create_matrix
     from matrixos.input import KeyboardInput
     
-    print("\n" + "="*64)
-    print("SNAKE")
-    print("="*64)
+    print("\n" + "="*80)
+    print("SNAKE - Enhanced for 256×192 ZX Spectrum Resolution")
+    print("="*80)
     print("\nControls:")
     print("  Arrow Keys - Change direction")
     print("  R          - Restart")
     print("  Backspace  - Quit")
-    print("\n" + "="*64 + "\n")
+    print("\nFeatures:")
+    print("  • Beautiful ZX Spectrum style border")
+    print("  • Larger play area (240×168)")
+    print("  • Enhanced snake with eyes and scales")
+    print("  • Pulsing food animation")
+    print("  • Win at 600 segments!")
+    print("\n" + "="*80 + "\n")
     
-    matrix = create_matrix(128, 128, 'rgb')
+    matrix = create_matrix(256, 192, 'rgb')
     
     with KeyboardInput() as input_handler:
         app = SnakeGame()

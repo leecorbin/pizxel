@@ -6,9 +6,10 @@
     "emoji_cache_dir": "settings/cache"
   },
   "display": {
-    "default_width": 128,
-    "default_height": 128,
-    "default_brightness": 80
+    "default_width": 256,
+    "default_height": 192,
+    "default_brightness": 80,
+    "_comment": "256x192 is the ZX Spectrum standard resolution. Launcher/Settings use 128x128 dynamically."
   },
   "apps": {
     "auto_install_dependencies": false,
