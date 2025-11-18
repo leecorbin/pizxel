@@ -48,6 +48,9 @@ htmlcov/
 apps/*
 !apps/.gitkeep
 
+# Note: .specstory is a git submodule pointing to a private repo
+# The submodule reference is tracked, but contents are in MatrixOS-private
+
 # Runtime settings and cache
 settings/*
 !settings/.gitkeep

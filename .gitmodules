@@ -1,0 +1,3 @@
+[submodule ".specstory"]
+	path = .specstory
+	url = https://github.com/leecorbin/MatrixOS-private.git
