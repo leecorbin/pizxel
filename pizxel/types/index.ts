@@ -10,12 +10,6 @@
 export type RGB = [number, number, number];
 
 /**
- * Display buffer: 2D array of RGB pixels [y][x]
- * Standard size: 256×192 (ZX Spectrum resolution)
- */
-export type DisplayBuffer = RGB[][];
-
-/**
  * Input event types
  */
 export interface InputEvent {
@@ -52,7 +46,7 @@ export interface App {
   onDeactivate(): void;
   onUpdate(deltaTime: number): void;
   onEvent(event: InputEvent): boolean; // Return true if event handled
-  render(matrix: DisplayBuffer): void;
+  render(matrix: any): void;  // DisplayBuffer from core/display-buffer.ts
 
   // Optional lifecycle methods
   onBackgroundTick?(): void;

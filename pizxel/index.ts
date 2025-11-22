@@ -1,12 +1,14 @@
 /**
  * PiZXel Entry Point
  *
- * Initialize device drivers and display test pattern.
+ * Initialize device drivers, app framework, and test app.
  */
 
 import { DeviceManager } from "./core/device-manager";
+import { AppFramework } from "./core/app-framework";
 import { TerminalDisplayDriver } from "./drivers/display/terminal-display";
 import { KeyboardInputDriver } from "./drivers/input/keyboard-input";
+import { TestApp } from "./apps/test-app";
 
 async function main() {
   console.log("PiZXel v0.1.0 - Initializing...\n");
@@ -26,38 +28,21 @@ async function main() {
     process.exit(1);
   }
 
-  const display = deviceManager.getDisplay();
+  // Create app framework
+  const appFramework = new AppFramework(deviceManager);
 
-  // Draw test pattern
-  console.log("\nDrawing test pattern...\n");
+  // Create and launch test app
+  const testApp = new TestApp();
+  appFramework.switchToApp(testApp);
 
-  // Gradient pattern
-  for (let y = 0; y < 192; y++) {
-    for (let x = 0; x < 256; x++) {
-      const r = Math.floor((x / 256) * 255);
-      const g = Math.floor((y / 192) * 255);
-      const b = 128;
-      display.setPixel(x, y, [r, g, b]);
-    }
-  }
+  console.log("\n=== Test App Launched ===");
+  console.log("Controls:");
+  console.log("  Arrow keys / WASD: Move rectangle");
+  console.log("  Space: Change color");
+  console.log("  ESC: Exit\n");
 
-  display.show();
-
-  console.log("\nTest pattern displayed!");
-  console.log("Press Ctrl+C to exit\n");
-
-  // Set up input handler
-  deviceManager.onInput((event) => {
-    console.log(`\nKey pressed: ${event.key}`);
-
-    if (event.key === "Escape") {
-      console.log("Exiting...");
-      deviceManager.shutdown().then(() => process.exit(0));
-    }
-  });
-
-  // Keep process alive
-  await new Promise(() => {});
+  // Start event loop
+  await appFramework.run();
 }
 
 main().catch(console.error);
