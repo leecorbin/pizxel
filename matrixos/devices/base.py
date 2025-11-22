@@ -14,6 +14,7 @@ class DisplayDriver(ABC):
     def __init__(self, width: int, height: int):
         self.width = width
         self.height = height
+        self.color_mode = "rgb"  # Always RGB for new drivers
         self.name = "Generic Display"
         self.platform = None  # "macos", "linux", "raspberry-pi", etc.
     
@@ -33,9 +34,20 @@ class DisplayDriver(ABC):
         pass
     
     @abstractmethod
+    def get_pixel(self, x: int, y: int) -> Tuple[int, int, int]:
+        """Get pixel color at position"""
+        pass
+    
+    @abstractmethod
     def clear(self):
         """Clear the entire display"""
         pass
+    
+    def fill(self, color: Tuple[int, int, int] = (0, 0, 0)):
+        """Fill entire display with color (default implementation)"""
+        for y in range(self.height):
+            for x in range(self.width):
+                self.set_pixel(x, y, color)
     
     @abstractmethod
     def show(self):
@@ -105,6 +117,19 @@ class InputDriver(ABC):
             list: List of InputEvent objects
         """
         pass
+    
+    def get_key(self, timeout: float = 0.0):
+        """
+        Get next key event (compatibility method for old API).
+        
+        Args:
+            timeout: Timeout in seconds (0 = non-blocking)
+            
+        Returns:
+            InputEvent or None
+        """
+        events = self.poll()
+        return events[0] if events else None
     
     @abstractmethod
     def cleanup(self):

@@ -127,12 +127,26 @@ def render_emoji_icon(emoji, size=32):
     except:
         draw.text((x, y), emoji, font=font, fill=(255, 255, 255))
     
-    # Convert to RGB
+    # Convert to RGB with black background (fully opaque)
+    # This composites RGBA onto black, converting semi-transparent edge pixels to solid colors
     rgb_img = Image.new('RGB', (size, size), (0, 0, 0))
     if img.mode == 'RGBA':
+        # Composite with alpha channel - this removes transparency
+        # Semi-transparent pixels become darkened solid colors
         rgb_img.paste(img, mask=img.split()[3])
     else:
         rgb_img.paste(img)
+    
+    # Apply threshold to eliminate near-black anti-aliasing artifacts
+    # Any pixel darker than this threshold becomes pure black (transparent in icon)
+    threshold = 30  # Adjust this value: lower = more aggressive filtering
+    pixels_data = rgb_img.load()
+    for py in range(size):
+        for px in range(size):
+            r, g, b = pixels_data[px, py]
+            # If pixel is very dark (likely anti-aliasing artifact), make it pure black
+            if r < threshold and g < threshold and b < threshold:
+                pixels_data[px, py] = (0, 0, 0)
     
     # Convert to pixel array
     pixels = []

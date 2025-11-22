@@ -11,10 +11,11 @@
     "default_width": 256,
     "default_height": 192,
     "default_brightness": 80,
-    "scale": 2,
+    "scale": 4,
+    "pixel_gap": 0,
     "_comment_driver": "Driver selection: 'auto' = auto-detect best for platform, 'terminal' = ANSI terminal, 'macos_window' = Pygame window (macOS), 'hdmi' = HDMI output (Pi), 'led_matrix' = LED matrix HAT (Pi)",
     "_comment_override": "Set driver_override to force specific driver: 'terminal', 'macos_window', etc. Leave null for auto-detection",
-    "_comment_scale": "Pixel scale factor for window drivers (2 = 256x192 becomes 512x384 window)"
+    "_comment_scale": "Pixel scale factor for window drivers (4 = 256x192 becomes 1024x768 window)"
   },
   "input_devices": [],
   "bluetooth": {

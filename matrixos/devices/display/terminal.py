@@ -14,11 +14,12 @@ from ...display import Display, TerminalRenderer
 class TerminalDisplayDriver(DisplayDriver):
     """Display driver for terminal output using ANSI escape codes"""
     
-    def __init__(self, width: int, height: int):
+    def __init__(self, width: int, height: int, **kwargs):
         super().__init__(width, height)
         self.name = "Terminal Display"
         self.display = None
         self.renderer = None
+        # Terminal driver ignores scale and pixel_gap settings
     
     def initialize(self) -> bool:
         """Initialize the terminal display"""
@@ -45,6 +46,11 @@ class TerminalDisplayDriver(DisplayDriver):
         """Clear the display"""
         if self.display:
             self.display.clear()
+    
+    def fill(self, color=(0, 0, 0)):
+        """Fill display with color"""
+        if self.display:
+            self.display.fill(color)
     
     def show(self):
         """Push buffer to terminal"""

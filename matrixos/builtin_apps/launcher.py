@@ -238,28 +238,19 @@ class App:
         # Calculate scale factor
         scale = size / self.icon_native_size
         
-        if scale == 1.0:
-            # No scaling needed - draw directly
-            for row_idx, row in enumerate(self.icon_pixels):
-                for col_idx, pixel in enumerate(row):
-                    color = self._get_pixel_color(pixel)
-                    if color:  # Skip transparent pixels
-                        matrix.set_pixel(x + col_idx, y + row_idx, color)
-        else:
-            # Scale (nearest neighbor for crisp pixels)
-            for row_idx, row in enumerate(self.icon_pixels):
-                for col_idx, pixel in enumerate(row):
-                    color = self._get_pixel_color(pixel)
-                    if color:  # Skip transparent pixels
-                        # Draw scaled pixel as a rectangle
-                        px = int(x + col_idx * scale)
-                        py = int(y + row_idx * scale)
-                        pw = max(1, int(scale))
-                        ph = max(1, int(scale))
-                        if pw == 1 and ph == 1:
-                            matrix.set_pixel(px, py, color)
-                        else:
-                            matrix.rect(px, py, pw, ph, color, fill=True)
+        # ALWAYS use rect rendering to avoid gridline artifacts
+        # (set_pixel seems to create gaps, rect with fill=True doesn't)
+        for row_idx, row in enumerate(self.icon_pixels):
+            for col_idx, pixel in enumerate(row):
+                color = self._get_pixel_color(pixel)
+                if color:  # Skip transparent pixels
+                    # Draw scaled pixel as a rectangle (even if scale=1)
+                    px = int(x + col_idx * scale)
+                    py = int(y + row_idx * scale)
+                    pw = max(1, int(scale))
+                    ph = max(1, int(scale))
+                    # Always use rect, never set_pixel
+                    matrix.rect(px, py, pw, ph, color, fill=True)
     
     def _get_pixel_color(self, pixel):
         """Convert pixel data to RGB color tuple.
@@ -277,7 +268,18 @@ class App:
             # Direct RGB format
             if pixel is None or pixel == []:
                 return None
-            return tuple(pixel)
+            
+            color = tuple(pixel)
+            
+            # Filter out near-black pixels (anti-aliasing artifacts from emoji rendering)
+            # These create the gridline effect when displayed
+            if color != (0, 0, 0):  # Not pure black
+                r, g, b = color
+                # If all components are very dark, treat as transparent
+                if r < 30 and g < 30 and b < 30:
+                    return None
+            
+            return color
         
         else:  # palette format
             # Legacy palette index

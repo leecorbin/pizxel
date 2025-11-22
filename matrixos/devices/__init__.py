@@ -51,7 +51,9 @@ class DeviceManager:
             "display": {
                 "width": 256,
                 "height": 192,
-                "driver": "auto"
+                "driver": "auto",
+                "scale": 4,  # Increased from 3 for better visibility
+                "pixel_gap": 0  # 0 = full pixels, 1+ = LED matrix look with gaps
             },
             "input_devices": [],
             "bluetooth": {
@@ -96,13 +98,14 @@ class DeviceManager:
         
         return "unknown"
     
-    def select_best_display(self, width: int, height: int) -> DisplayDriver:
+    def select_best_display(self, width: int, height: int, **kwargs) -> DisplayDriver:
         """
         Auto-select best display driver for current platform.
         
         Args:
             width: Display width in pixels
             height: Display height in pixels
+            **kwargs: Additional driver-specific settings
             
         Returns:
             DisplayDriver: Instantiated driver
@@ -131,7 +134,7 @@ class DeviceManager:
         priority, name, driver_class = available[0]
         print(f"[DeviceManager] Selected display driver: {name} (priority: {priority})")
         
-        return driver_class(width=width, height=height)
+        return driver_class(width=width, height=height, **kwargs)
     
     def initialize_display(self, driver_name: str = None) -> bool:
         """
@@ -146,18 +149,27 @@ class DeviceManager:
         config = self.config.get("display", {})
         width = config.get("width", 256)
         height = config.get("height", 192)
+        scale = config.get("scale", 3)
+        pixel_gap = config.get("pixel_gap", 0)
+        
+        print(f"[DeviceManager] Config display section: {config}")
+        print(f"[DeviceManager] Extracted: width={width}, height={height}, scale={scale}, pixel_gap={pixel_gap}")
         
         # Check for override in config
         if driver_name is None:
             driver_name = config.get("driver", "auto")
         
         if driver_name == "auto" or driver_name not in self.display_drivers:
-            # Auto-select best driver
-            self.active_display = self.select_best_display(width, height)
+            # Auto-select best driver with settings
+            self.active_display = self.select_best_display(
+                width, height, scale=scale, pixel_gap=pixel_gap
+            )
         else:
-            # Use specified driver
+            # Use specified driver with settings
             driver_class = self.display_drivers[driver_name]
-            self.active_display = driver_class(width=width, height=height)
+            self.active_display = driver_class(
+                width=width, height=height, scale=scale, pixel_gap=pixel_gap
+            )
         
         success = self.active_display.initialize()
         

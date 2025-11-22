@@ -4,11 +4,10 @@ Initializes the OS and launches the launcher application
 """
 
 from pathlib import Path
-from matrixos.led_api import create_matrix
-from matrixos.input import KeyboardInput
 from matrixos.config import parse_matrix_args
 from matrixos.app_framework import OSContext
 from matrixos.builtin_apps.launcher import Launcher
+from matrixos.devices import DeviceManager
 
 
 def boot(project_root=None):
@@ -41,11 +40,58 @@ def boot(project_root=None):
     else:
         project_root = Path(project_root)
 
-    # Create matrix
-    matrix = create_matrix(args.width, args.height, args.color_mode)
+    # Initialize device manager with auto-detection
+    device_manager = DeviceManager()
+    
+    # Override display config with CLI args
+    device_manager.config["display"]["width"] = args.width
+    device_manager.config["display"]["height"] = args.height
+    
+    # Register display drivers
+    from matrixos.devices.display.terminal import TerminalDisplayDriver
+    device_manager.register_display_driver("terminal", TerminalDisplayDriver)
+    
+    try:
+        from matrixos.devices.display.macos_window import MacOSWindowDriver
+        device_manager.register_display_driver("macos_window", MacOSWindowDriver)
+    except ImportError:
+        pass  # Pygame not available
+    
+    # Register input drivers
+    from matrixos.devices.input.terminal import TerminalInputDriver
+    device_manager.register_input_driver("terminal", TerminalInputDriver)
+    
+    try:
+        from matrixos.devices.input.pygame_input import PygameInputDriver
+        device_manager.register_input_driver("pygame", PygameInputDriver)
+    except ImportError:
+        pass  # Pygame not available
+    
+    # Initialize display (auto-selects best: pygame window on Mac, or terminal fallback)
+    if not device_manager.initialize_display():
+        print("ERROR: Failed to initialize display!")
+        return 1
+    
+    # Initialize input (auto-selects: pygame keyboard if window active, or terminal)
+    if not device_manager.initialize_inputs():
+        print("ERROR: Failed to initialize input!")
+        return 1
+    
+    # Wrap the display driver with LED API
+    from matrixos.led_api import LEDMatrix
+    matrix = LEDMatrix(args.width, args.height, args.color_mode)
+    # Replace the internal display with our device driver
+    matrix.display = device_manager.active_display
+    
+    # Override show() to use device driver instead of terminal renderer
+    def show_via_driver(*args, **kwargs):
+        device_manager.active_display.show()
+    matrix.show = show_via_driver
+    
+    input_handler = device_manager.active_inputs[0]  # Use first input device
 
     # Run launcher
-    with KeyboardInput() as input_handler:
+    try:
         # Create OS context for framework apps
         os_context = OSContext(matrix, input_handler)
 
@@ -61,6 +107,10 @@ def boot(project_root=None):
         print()
 
         launcher.run()
+    
+    finally:
+        # Clean shutdown of all devices
+        device_manager.cleanup()
 
     # Clean exit
     print("\n" + "="*64)

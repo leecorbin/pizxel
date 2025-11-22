@@ -130,6 +130,10 @@ class EmojiLoader:
                 if a < 128:
                     continue
                 
+                # Skip black pixels (background/anti-aliasing artifacts)
+                if r < 30 and g < 30 and b < 30:
+                    continue
+                
                 # Convert to RGB565
                 r5 = (r >> 3) & 0x1F
                 g6 = (g >> 2) & 0x3F
