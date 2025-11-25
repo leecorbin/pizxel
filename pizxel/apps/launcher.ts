@@ -9,6 +9,7 @@ import { App, InputEvent, InputKeys } from "../types/index";
 import { DisplayBuffer } from "../core/display-buffer";
 import { AppFramework } from "../core/app-framework";
 import { HelpModal } from "../ui";
+import { getEmojiLoader } from "../lib/emoji-loader";
 
 interface AppIcon {
   name: string;
@@ -33,11 +34,11 @@ export class LauncherApp implements App {
   ]);
 
   // Layout configuration for 256×192
-  private readonly cols = 5; // 5 columns of icons
+  private readonly cols = 4; // 4 columns of icons
   private readonly rows = 3; // 3 rows of icons
-  private readonly iconSize = 40; // 40×40 pixel cells
-  private readonly iconSpacing = 8;
-  private readonly startX = 16; // Left margin
+  private readonly iconSize = 48; // 48×48 pixel cells (larger for better text)
+  private readonly iconSpacing = 12;
+  private readonly startX = 20; // Left margin
   private readonly startY = 40; // Top margin (leave room for title)
 
   // ZX Spectrum color palette
@@ -51,19 +52,8 @@ export class LauncherApp implements App {
   constructor(appFramework: AppFramework) {
     this.appFramework = appFramework;
 
-    // Initialize with placeholder apps (will be populated via registerApp)
-    this.apps = [
-      { name: "Settings", emoji: "⚙️", color: [128, 128, 255] },
-      { name: "Calculator", emoji: "🔢", color: [255, 128, 0] },
-      { name: "Music", emoji: "♪", color: [255, 0, 255] },
-      { name: "Files", emoji: "📁", color: [255, 255, 128] },
-      { name: "Games", emoji: "🎯", color: [255, 64, 64] },
-      { name: "Network", emoji: "🌐", color: [64, 255, 64] },
-      { name: "Terminal", emoji: "💻", color: [0, 255, 0] },
-      { name: "Paint", emoji: "🎨", color: [255, 128, 255] },
-      { name: "Notes", emoji: "📝", color: [255, 255, 128] },
-      { name: "Help", emoji: "❓", color: [255, 128, 64] },
-    ];
+    // Apps will be registered dynamically via registerApp()
+    this.apps = [];
   }
 
   registerApp(
@@ -82,7 +72,17 @@ export class LauncherApp implements App {
     this.dirty = true;
   }
 
-  onActivate(): void {
+  async onActivate(): Promise<void> {
+    // Pre-load all emoji icons when launcher activates
+    const emojiLoader = getEmojiLoader();
+    const loadPromises = this.apps.map((app) =>
+      emojiLoader.getEmojiImage(app.emoji).catch((err) => {
+        console.warn(`Failed to pre-load emoji ${app.emoji}:`, err.message);
+      })
+    );
+
+    // Wait for all emojis to load before marking dirty
+    await Promise.all(loadPromises);
     this.dirty = true;
   }
 
@@ -220,9 +220,9 @@ export class LauncherApp implements App {
     y: number,
     selected: boolean
   ): void {
-    // Draw selection border (ZX Spectrum bright colors)
+    // Draw selection border only for selected icon (ZX Spectrum bright colors)
     if (selected) {
-      // Animated border effect
+      // Double border effect for selection
       matrix.rect(
         x - 2,
         y - 2,
@@ -239,10 +239,8 @@ export class LauncherApp implements App {
         this.selectedColor,
         false
       );
-    } else {
-      // Normal border
-      matrix.rect(x, y, this.iconSize, this.iconSize, this.borderColor, false);
     }
+    // No border for unselected icons
 
     // Draw icon background (subtle)
     const bgShade: [number, number, number] = [16, 16, 32];
@@ -256,32 +254,43 @@ export class LauncherApp implements App {
     );
 
     // Draw emoji icon (centered in cell)
-    // Note: For now we'll draw a colored square as placeholder since emoji rendering
-    // would require the emoji loader system. We'll represent with colored blocks.
-    const iconSize = 24;
-    const iconX = x + (this.iconSize - iconSize) / 2;
-    const iconY = y + (this.iconSize - iconSize) / 2;
+    const emojiSize = 32; // Emoji render size
+    const iconX = x + (this.iconSize - emojiSize) / 2;
+    const iconY = y + (this.iconSize - emojiSize) / 2;
 
-    // Draw colored square with icon color
-    matrix.rect(
+    // Try to render emoji from cache (synchronous)
+    const emojiLoader = getEmojiLoader();
+    const rendered = emojiLoader.renderToBufferSync(
+      icon.emoji,
+      matrix,
       Math.floor(iconX),
       Math.floor(iconY),
-      iconSize,
-      iconSize,
-      icon.color,
-      true
+      emojiSize
     );
 
-    // Draw a simple pattern inside to make it more distinctive
-    const centerX = Math.floor(iconX + iconSize / 2);
-    const centerY = Math.floor(iconY + iconSize / 2);
-    matrix.circle(centerX, centerY, 8, this.bgColor, false);
+    // If emoji not rendered (not in cache), draw fallback
+    if (!rendered) {
+      matrix.rect(
+        Math.floor(iconX),
+        Math.floor(iconY),
+        emojiSize,
+        emojiSize,
+        icon.color,
+        true
+      );
+      // Draw a simple pattern inside
+      const centerX = Math.floor(iconX + emojiSize / 2);
+      const centerY = Math.floor(iconY + emojiSize / 2);
+      matrix.circle(centerX, centerY, 10, this.bgColor, false);
+    }
 
-    // Draw app name below icon
-    const nameX = x + (this.iconSize - icon.name.length * 8) / 2;
-    const nameY = y + this.iconSize + 2;
+    // Draw app name below icon (centered, with more space)
+    const maxChars = 6; // Allow up to 6 characters with larger spacing
+    const displayName = icon.name.substring(0, maxChars);
+    const nameX = x + (this.iconSize - displayName.length * 8) / 2;
+    const nameY = y + this.iconSize + 4;
     matrix.text(
-      icon.name.substring(0, 5), // Truncate to fit
+      displayName,
       Math.floor(nameX),
       Math.floor(nameY),
       selected ? this.selectedColor : this.textColor

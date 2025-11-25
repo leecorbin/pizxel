@@ -42,11 +42,11 @@ export interface App {
   readonly name: string;
 
   // Lifecycle methods
-  onActivate(): void;
+  onActivate(): void | Promise<void>;
   onDeactivate(): void;
   onUpdate(deltaTime: number): void;
   onEvent(event: InputEvent): boolean; // Return true if event handled
-  render(matrix: any): void;  // DisplayBuffer from core/display-buffer.ts
+  render(matrix: any): void; // DisplayBuffer from core/display-buffer.ts
 
   // Optional lifecycle methods
   onBackgroundTick?(): void;

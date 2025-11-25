@@ -2,14 +2,13 @@
   "name": "pizxel",
   "version": "0.1.0",
   "description": "Retro-aesthetic LED matrix OS - Look like 1983, work like 2025",
-  "main": "dist/pizxel/index.js",
+  "main": "pizxel/start.ts",
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "start": "node dist/pizxel/index.js",
-    "start:canvas": "node dist/pizxel/index.js --canvas",
-    "clean": "rm -rf dist",
-    "test": "npm run build && node dist/tests/example-test.js"
+    "start": "tsx pizxel/start.ts",
+    "start:canvas": "tsx pizxel/start.ts --canvas",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx tests/example-test.ts",
+    "clean": "rm -rf dist"
   },
   "keywords": [
     "led-matrix",
@@ -21,12 +20,14 @@
   "author": "Lee Corbin",
   "license": "MIT",
   "dependencies": {
+    "canvas": "^3.2.0",
     "express": "^4.18.2",
     "socket.io": "^4.6.1"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^20.10.6",
+    "tsx": "^4.20.6",
     "typescript": "^5.3.3"
   },
   "engines": {

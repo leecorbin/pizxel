@@ -75,8 +75,8 @@ async function main() {
   // Set launcher for ESC key handling
   appFramework.setLauncher(launcher);
 
-  // Launch launcher
-  appFramework.switchToApp(launcher);
+  // Launch launcher (await to ensure emojis load before first render)
+  await appFramework.switchToApp(launcher);
   console.log("=== PiZXel OS Launched ===");
   console.log("Controls:");
   console.log("  Arrow keys: Navigate launcher");

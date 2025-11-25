@@ -192,7 +192,7 @@ export class CanvasServer {
   <style>
     body {
       margin: 0;
-      padding: 20px;
+      padding: 60px 20px 20px 20px;
       background: #1a1a1a;
       color: #00ffff;
       font-family: 'Courier New', monospace;
@@ -202,21 +202,8 @@ export class CanvasServer {
       min-height: 100vh;
     }
     
-    h1 {
-      margin: 0 0 10px 0;
-      font-size: 24px;
-      text-shadow: 0 0 10px #00ffff;
-    }
-    
-    #info {
-      margin-bottom: 20px;
-      font-size: 14px;
-      color: #ffff00;
-    }
-    
     #container {
-      border: 2px solid #00ffff;
-      box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
       background: #000;
       padding: 10px;
     }
@@ -225,6 +212,11 @@ export class CanvasServer {
       display: block;
       image-rendering: pixelated;
       image-rendering: crisp-edges;
+      transition: opacity 0.3s ease;
+    }
+    
+    canvas.disconnected {
+      opacity: 0.3;
     }
     
     #stats {
@@ -244,17 +236,13 @@ export class CanvasServer {
   </style>
 </head>
 <body>
-  <h1>🎮 PiZXel Display</h1>
-  <div id="info">
-    <span id="size">Loading...</span> | 
-    <span id="status" class="status">Connecting...</span>
-  </div>
-  
   <div id="container">
     <canvas id="display"></canvas>
   </div>
   
   <div id="stats">
+    <span id="size">Loading...</span> | 
+    <span id="status" class="status">Connecting...</span> | 
     FPS: <span id="fps">0</span> | 
     Frames: <span id="frames">0</span> |
     Latency: <span id="latency">0ms</span>
@@ -355,12 +343,14 @@ export class CanvasServer {
     socket.on('disconnect', () => {
       document.getElementById('status').textContent = 'Disconnected';
       document.getElementById('status').className = 'error';
+      canvas.classList.add('disconnected');
     });
     
     // Handle reconnection
     socket.on('connect', () => {
       document.getElementById('status').textContent = 'Connected';
       document.getElementById('status').className = 'status';
+      canvas.classList.remove('disconnected');
     });
     
     // Keyboard input handling

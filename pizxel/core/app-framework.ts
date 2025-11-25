@@ -38,7 +38,7 @@ export class AppFramework {
   /**
    * Register and activate an app
    */
-  switchToApp(app: App): void {
+  async switchToApp(app: App): Promise<void> {
     // Deactivate current app
     if (this.activeApp) {
       this.activeApp.onDeactivate();
@@ -46,7 +46,7 @@ export class AppFramework {
 
     // Activate new app
     this.activeApp = app;
-    this.activeApp.onActivate();
+    await this.activeApp.onActivate();
 
     console.log(`Switched to app: ${app.name}`);
   }
@@ -157,20 +157,13 @@ export class AppFramework {
     // If app didn't handle, check for system keys
     if (!handled) {
       if (event.key === "Escape") {
-        // If we're in launcher, exit; otherwise return to launcher
-        if (this.activeApp === this.launcherApp) {
-          console.log("\nExiting...");
-          this.stop();
-          this.deviceManager.shutdown().then(() => process.exit(0));
-        } else if (this.launcherApp) {
+        // ESC returns to launcher (or does nothing if already in launcher)
+        // Only Ctrl+C (handled by OS) will exit the application
+        if (this.activeApp !== this.launcherApp && this.launcherApp) {
           console.log("\nReturning to launcher...");
           this.switchToApp(this.launcherApp);
-        } else {
-          // No launcher set, just exit
-          console.log("\nExiting...");
-          this.stop();
-          this.deviceManager.shutdown().then(() => process.exit(0));
         }
+        // If in launcher, ESC does nothing - user must use Ctrl+C to exit
       }
     }
   }
