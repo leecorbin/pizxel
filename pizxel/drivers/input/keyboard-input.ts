@@ -37,6 +37,14 @@ export class KeyboardInputDriver extends InputDriver {
     process.stdin.pause();
   }
 
+  /**
+   * Inject a key event (for canvas/remote input)
+   */
+  injectKey(key: string): void {
+    console.log(`[KeyboardInput] Injecting key: "${key}"`);
+    this.handleKeyPress(key);
+  }
+
   async isAvailable(): Promise<boolean> {
     // Keyboard is always available if stdin exists
     return process.stdin !== undefined;
@@ -47,33 +55,43 @@ export class KeyboardInputDriver extends InputDriver {
     let eventKey: string;
 
     switch (key) {
+      // Terminal escape sequences
       case "\u001b[A":
+      case "ArrowUp":
         eventKey = "ArrowUp";
         break;
       case "\u001b[B":
+      case "ArrowDown":
         eventKey = "ArrowDown";
         break;
       case "\u001b[C":
+      case "ArrowRight":
         eventKey = "ArrowRight";
         break;
       case "\u001b[D":
+      case "ArrowLeft":
         eventKey = "ArrowLeft";
         break;
       case "\r":
       case "\n":
+      case "Enter":
         eventKey = "Enter";
         break;
       case " ":
+      case "Space":
         eventKey = " ";
         break;
       case "\u007f":
       case "\b":
+      case "Backspace":
         eventKey = "Backspace";
         break;
       case "\u001b":
+      case "Escape":
         eventKey = "Escape";
         break;
       case "\t":
+      case "Tab":
         eventKey = "Tab";
         break;
       case "\u0003": // Ctrl+C
@@ -86,6 +104,7 @@ export class KeyboardInputDriver extends InputDriver {
           eventKey = key;
         } else {
           // Unknown escape sequence
+          console.log(`[KeyboardInput] Unknown key: "${key}"`);
           return;
         }
     }

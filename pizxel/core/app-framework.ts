@@ -104,6 +104,7 @@ export class AppFramework {
 
       // Render if app is dirty
       if ((this.activeApp as any).dirty) {
+        console.log(`[AppFramework] App is dirty, rendering...`);
         this.render();
       }
     }
@@ -122,6 +123,8 @@ export class AppFramework {
       return;
     }
 
+    console.log("[AppFramework] render() called");
+
     // Let app render to buffer
     this.activeApp.render(this.displayBuffer);
 
@@ -129,12 +132,14 @@ export class AppFramework {
     const display = this.deviceManager.getDisplay();
     const buffer = this.displayBuffer.getBuffer();
 
+    console.log("[AppFramework] Copying buffer to display driver");
     for (let y = 0; y < this.displayBuffer.getHeight(); y++) {
       for (let x = 0; x < this.displayBuffer.getWidth(); x++) {
         display.setPixel(x, y, buffer[y][x]);
       }
     }
 
+    console.log("[AppFramework] Calling display.show()");
     display.show();
   }
 

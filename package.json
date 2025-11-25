@@ -2,13 +2,14 @@
   "name": "pizxel",
   "version": "0.1.0",
   "description": "Retro-aesthetic LED matrix OS - Look like 1983, work like 2025",
-  "main": "dist/index.js",
+  "main": "dist/pizxel/index.js",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "start": "node dist/index.js",
+    "start": "node dist/pizxel/index.js",
+    "start:canvas": "node dist/pizxel/index.js --canvas",
     "clean": "rm -rf dist",
-    "test": "echo \"Tests coming in Phase 3\" && exit 0"
+    "test": "npm run build && node dist/tests/example-test.js"
   },
   "keywords": [
     "led-matrix",

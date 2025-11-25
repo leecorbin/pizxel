@@ -6,11 +6,19 @@
 
 import { App, InputEvent, InputKeys } from "../types/index";
 import { DisplayBuffer } from "../core/display-buffer";
+import { HelpModal } from "../ui";
 
 export class ClockApp implements App {
   readonly name = "Clock";
 
   private mode: "analog" | "digital" = "analog";
+
+  // Help modal
+  private helpModal = HelpModal.create([
+    { key: "Space", action: "Toggle analog/digital" },
+    { key: "Tab", action: "Show help" },
+    { key: "ESC", action: "Return to launcher" },
+  ]);
 
   // Clock center and radius for analog mode
   private readonly centerX = 128;
@@ -52,6 +60,19 @@ export class ClockApp implements App {
       return false;
     }
 
+    // Check for help key FIRST (before app logic)
+    if (event.key === InputKeys.HELP || event.key === "Tab") {
+      this.helpModal.toggle();
+      this.dirty = true;
+      return true;
+    }
+
+    // Modal intercepts events when visible
+    if (this.helpModal.visible && this.helpModal.handleEvent(event)) {
+      this.dirty = true;
+      return true;
+    }
+
     // Toggle between analog and digital mode with space bar
     if (event.key === " " || event.key === InputKeys.ACTION) {
       this.mode = this.mode === "analog" ? "digital" : "analog";
@@ -75,11 +96,8 @@ export class ClockApp implements App {
     // Draw title
     matrix.text("CLOCK", 4, 4, this.textColor);
 
-    // Draw mode indicator
-    const modeText = `[Space: ${
-      this.mode === "analog" ? "Digital" : "Analog"
-    }]`;
-    matrix.text(modeText, 4, 180, [128, 128, 128]);
+    // Render help modal on top if visible
+    this.helpModal.render(matrix);
 
     this.dirty = false;
   }

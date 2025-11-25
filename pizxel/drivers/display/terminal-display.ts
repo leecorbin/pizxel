@@ -13,17 +13,24 @@ export class TerminalDisplayDriver extends DisplayDriver {
   readonly name = "Terminal Display";
 
   private lastBuffer: RGB[][] | null = null;
+  private silent: boolean = false; // Suppress output when true
 
   constructor() {
     super(256, 192);
   }
 
+  setSilent(silent: boolean): void {
+    this.silent = silent;
+  }
+
   async initialize(): Promise<void> {
-    // Clear screen and hide cursor
-    process.stdout.write("\x1b[2J\x1b[?25l");
-    process.stdout.write("\x1b[H"); // Home cursor
-    console.log("PiZXel Terminal Display initialized (256×192)");
-    console.log("Using Unicode block characters for rendering\n");
+    if (!this.silent) {
+      // Clear screen and hide cursor
+      process.stdout.write("\x1b[2J\x1b[?25l");
+      process.stdout.write("\x1b[H"); // Home cursor
+      console.log("PiZXel Terminal Display initialized (256×192)");
+      console.log("Using Unicode block characters for rendering\n");
+    }
   }
 
   async shutdown(): Promise<void> {
@@ -38,6 +45,8 @@ export class TerminalDisplayDriver extends DisplayDriver {
   }
 
   show(): void {
+    if (this.silent) return; // Skip rendering in silent mode
+
     // Render buffer to terminal using ANSI colors
     // Use half-blocks to double vertical resolution
 

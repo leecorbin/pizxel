@@ -4,7 +4,6 @@
     "module": "commonjs",
     "lib": ["ES2020"],
     "outDir": "./dist",
-    "rootDir": "./pizxel",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -16,6 +15,6 @@
     "moduleResolution": "node",
     "types": ["node"]
   },
-  "include": ["pizxel/**/*"],
+  "include": ["pizxel/**/*", "tests/**/*"],
   "exclude": ["node_modules", "dist", "matrixos-archive", "data"]
 }

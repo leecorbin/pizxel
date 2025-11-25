@@ -8,6 +8,7 @@
 import { App, InputEvent, InputKeys } from "../types/index";
 import { DisplayBuffer } from "../core/display-buffer";
 import { AppFramework } from "../core/app-framework";
+import { HelpModal } from "../ui";
 
 interface AppIcon {
   name: string;
@@ -22,6 +23,14 @@ export class LauncherApp implements App {
   private selectedIndex: number = 0;
   private apps: AppIcon[] = [];
   private appFramework: AppFramework;
+
+  // Help modal
+  private helpModal = HelpModal.create([
+    { key: "Arrow Keys", action: "Navigate apps" },
+    { key: "Enter/Space", action: "Launch app" },
+    { key: "Tab", action: "Show help" },
+    { key: "ESC", action: "Exit PiZXel" },
+  ]);
 
   // Layout configuration for 256×192
   private readonly cols = 5; // 5 columns of icons
@@ -88,6 +97,19 @@ export class LauncherApp implements App {
   onEvent(event: InputEvent): boolean {
     if (event.type !== "keydown") {
       return false;
+    }
+
+    // Check for help key FIRST (before app logic)
+    if (event.key === InputKeys.HELP || event.key === "Tab") {
+      this.helpModal.toggle();
+      this.dirty = true;
+      return true;
+    }
+
+    // Modal intercepts events when visible
+    if (this.helpModal.visible && this.helpModal.handleEvent(event)) {
+      this.dirty = true;
+      return true;
     }
 
     let handled = false;
@@ -169,8 +191,8 @@ export class LauncherApp implements App {
       this.drawIcon(matrix, this.apps[i], x, y, i === this.selectedIndex);
     }
 
-    // Draw status bar at bottom
-    this.drawStatusBar(matrix);
+    // Render help modal on top if visible
+    this.helpModal.render(matrix);
 
     this.dirty = false;
   }
@@ -264,17 +286,5 @@ export class LauncherApp implements App {
       Math.floor(nameY),
       selected ? this.selectedColor : this.textColor
     );
-  }
-
-  private drawStatusBar(matrix: DisplayBuffer): void {
-    const statusY = 180;
-
-    // Draw separator line
-    matrix.line(0, statusY - 2, 255, statusY - 2, this.borderColor);
-
-    // Draw instructions
-    const instructions = "Arrows:Move  Enter:Launch  Esc:Exit";
-    const instX = Math.floor((256 - instructions.length * 8) / 2);
-    matrix.text(instructions, instX, statusY, [128, 128, 128]);
   }
 }

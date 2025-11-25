@@ -10,6 +10,7 @@
 
 import { App, InputEvent, InputKeys } from "../types/index";
 import { DisplayBuffer } from "../core/display-buffer";
+import { HelpModal } from "../ui";
 
 export class TestApp implements App {
   readonly name = "Test App";
@@ -20,6 +21,14 @@ export class TestApp implements App {
   private height: number = 20;
   private color: [number, number, number] = [0, 255, 0]; // Green
   private speed: number = 100; // pixels per second
+
+  // Help modal
+  private helpModal = HelpModal.create([
+    { key: "Arrow Keys", action: "Move rectangle" },
+    { key: "Space", action: "Change color" },
+    { key: "Tab", action: "Show help" },
+    { key: "ESC", action: "Return to launcher" },
+  ]);
 
   dirty: boolean = true; // Request initial render
 
@@ -45,6 +54,19 @@ export class TestApp implements App {
   onEvent(event: InputEvent): boolean {
     if (event.type !== "keydown") {
       return false;
+    }
+
+    // Check for help key FIRST (before app logic)
+    if (event.key === InputKeys.HELP || event.key === "Tab") {
+      this.helpModal.toggle();
+      this.dirty = true;
+      return true;
+    }
+
+    // Modal intercepts events when visible
+    if (this.helpModal.visible && this.helpModal.handleEvent(event)) {
+      this.dirty = true;
+      return true;
     }
 
     let moved = false;
@@ -118,6 +140,9 @@ export class TestApp implements App {
     // Draw some decorative elements
     matrix.circle(128, 96, 40, [128, 128, 128], false);
     matrix.line(0, 30, 256, 30, [64, 64, 64]);
+
+    // Render help modal on top if visible
+    this.helpModal.render(matrix);
 
     // Clear dirty flag
     this.dirty = false;
