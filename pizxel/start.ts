@@ -16,6 +16,7 @@ import { CanvasDisplayDriver } from "./drivers/display/canvas-display-driver";
 import { KeyboardInputDriver } from "./drivers/input/keyboard-input";
 import { LauncherApp } from "./apps/launcher";
 import { WebAudioDriver } from "./audio/web-audio-driver";
+import { CanvasAudioDriver } from "./audio/canvas-audio-driver";
 import { Audio } from "./audio/audio";
 
 // Global audio instance (accessible to all apps)
@@ -38,15 +39,6 @@ async function main() {
   // Create device manager
   const deviceManager = new DeviceManager();
 
-  // Initialize audio driver
-  console.log("Initializing audio...");
-  const audioDriver = new WebAudioDriver();
-  await audioDriver.initialize();
-  globalAudio = new Audio(audioDriver);
-  console.log(
-    `Audio: ${audioDriver.isAvailable() ? "Available" : "Not available"}`
-  );
-
   // Register available drivers
   if (useCanvas) {
     // Canvas mode: Register canvas driver (higher priority)
@@ -63,6 +55,35 @@ async function main() {
   } catch (error) {
     console.error("Failed to initialize devices:", error);
     process.exit(1);
+  }
+
+  // Initialize audio driver (after display, so we can get canvas server)
+  console.log("Initializing audio...");
+  if (useCanvas) {
+    const display = deviceManager.getDisplay();
+    console.log(`Display driver: ${display.constructor.name}`);
+    if (display instanceof CanvasDisplayDriver) {
+      const server = display.getServer();
+      console.log(`Canvas server obtained: ${server ? "YES" : "NO"}`);
+      const audioDriver = new CanvasAudioDriver(server);
+      await audioDriver.initialize();
+      globalAudio = new Audio(audioDriver);
+      console.log(
+        `Audio: Canvas mode (browser-based) - ${
+          globalAudio.isAvailable() ? "AVAILABLE" : "NOT AVAILABLE"
+        }`
+      );
+    } else {
+      console.log(
+        `Display is not CanvasDisplayDriver, it's ${display.constructor.name}`
+      );
+    }
+  } else {
+    // Terminal mode: No audio for now (would need speaker package)
+    console.log(
+      `Audio: Not available in terminal mode (TODO: add speaker package support)`
+    );
+    globalAudio = null;
   }
 
   // If canvas mode, setup keyboard forwarding from browser

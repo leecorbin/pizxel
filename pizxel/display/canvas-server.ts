@@ -111,6 +111,28 @@ export class CanvasServer {
   }
 
   /**
+   * Send audio beep to all connected clients
+   */
+  sendBeep(frequency: number, duration: number, volume: number = 0.5): void {
+    console.log(
+      `[CanvasServer] Emitting audio:beep to ${this.clientCount} clients`
+    );
+    this.io?.emit("audio:beep", { frequency, duration, volume });
+  }
+
+  /**
+   * Send audio sweep to all connected clients
+   */
+  sendSweep(
+    startFreq: number,
+    endFreq: number,
+    duration: number,
+    volume: number = 0.5
+  ): void {
+    this.io?.emit("audio:sweep", { startFreq, endFreq, duration, volume });
+  }
+
+  /**
    * Start the server
    */
   start(): Promise<void> {
@@ -363,12 +385,85 @@ export class CanvasServer {
       canvas.classList.remove('disconnected');
     });
     
+    // Audio setup (Web Audio API in browser)
+    let audioContext = null;
+    let masterGain = null;
+    
+    function initAudio() {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = audioContext.createGain();
+        masterGain.gain.value = 0.5;
+        masterGain.connect(audioContext.destination);
+        console.log('Audio initialized');
+      }
+      // Resume if suspended (autoplay policy)
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+    }
+    
+    // Handle audio commands from server
+    socket.on('audio:beep', (data) => {
+      initAudio();
+      const { frequency, duration, volume } = data;
+      
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.type = 'square';
+      oscillator.frequency.value = frequency;
+      gainNode.gain.value = volume || 0.5;
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(masterGain);
+      
+      const now = audioContext.currentTime;
+      oscillator.start(now);
+      oscillator.stop(now + duration / 1000);
+      
+      oscillator.onended = () => {
+        oscillator.disconnect();
+        gainNode.disconnect();
+      };
+    });
+    
+    socket.on('audio:sweep', (data) => {
+      initAudio();
+      const { startFreq, endFreq, duration, volume } = data;
+      
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.type = 'square';
+      oscillator.frequency.value = startFreq;
+      gainNode.gain.value = volume || 0.5;
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(masterGain);
+      
+      const now = audioContext.currentTime;
+      const dur = duration / 1000;
+      oscillator.frequency.exponentialRampToValueAtTime(endFreq, now + dur);
+      
+      oscillator.start(now);
+      oscillator.stop(now + dur);
+      
+      oscillator.onended = () => {
+        oscillator.disconnect();
+        gainNode.disconnect();
+      };
+    });
+    
     // Keyboard input handling
     document.addEventListener('keydown', (e) => {
       // Prevent default browser behavior for arrow keys, space, etc.
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', ' ', 'Enter', 'Escape', 'Tab'].includes(e.key)) {
         e.preventDefault();
       }
+      
+      // Init audio on first interaction (required by browsers)
+      initAudio();
       
       // Send key to server
       socket.emit('keydown', { key: e.key });

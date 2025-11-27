@@ -10,6 +10,8 @@ import { DisplayBuffer } from "../core/display-buffer";
 import { AppFramework } from "../core/app-framework";
 import { HelpModal, GamesPopup } from "../ui";
 import { getEmojiLoader } from "../lib/emoji-loader";
+import { getAudio } from "../start";
+import { Sounds } from "../audio/audio";
 
 interface AppIcon {
   name: string;
@@ -228,6 +230,12 @@ export class LauncherApp implements App {
       case "A":
         if (this.selectedIndex > 0) {
           this.selectedIndex--;
+          const audio = getAudio();
+          console.log(`[Launcher] Audio available: ${audio ? "YES" : "NO"}`);
+          if (audio) {
+            console.log(`[Launcher] Playing SELECT sound`);
+            audio.play(Sounds.SELECT);
+          }
           handled = true;
         }
         break;
@@ -237,6 +245,7 @@ export class LauncherApp implements App {
       case "D":
         if (this.selectedIndex < this.apps.length - 1) {
           this.selectedIndex++;
+          getAudio()?.play(Sounds.SELECT);
           handled = true;
         }
         break;
@@ -287,6 +296,7 @@ export class LauncherApp implements App {
       case "W":
         if (this.selectedIndex >= this.cols) {
           this.selectedIndex -= this.cols;
+          getAudio()?.play(Sounds.SELECT);
           handled = true;
         }
         break;
@@ -296,6 +306,7 @@ export class LauncherApp implements App {
       case "S":
         if (this.selectedIndex + this.cols < this.apps.length) {
           this.selectedIndex += this.cols;
+          getAudio()?.play(Sounds.SELECT);
           handled = true;
         }
         break;
@@ -308,14 +319,17 @@ export class LauncherApp implements App {
         if (selected.isFolder) {
           // Open Games popup
           console.log("Opening Games folder");
+          getAudio()?.play(Sounds.COIN);
           this.gamesPopup.show();
           handled = true;
         } else if (selected.app) {
           console.log(`Launching app: ${selected.name}`);
+          getAudio()?.play(Sounds.COIN);
           this.appFramework.switchToApp(selected.app);
           handled = true;
         } else {
           console.log(`App not yet implemented: ${selected.name}`);
+          getAudio()?.play(Sounds.ERROR);
           handled = true;
         }
         break;
