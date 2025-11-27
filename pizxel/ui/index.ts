@@ -25,6 +25,10 @@ export {
   SpinnerStyle,
 } from "./components/loading-spinner";
 export { TabView, TabViewOptions, Tab } from "./components/tab-view";
+export {
+  OnScreenKeyboard,
+  OnScreenKeyboardOptions,
+} from "./components/on-screen-keyboard";
 
 // Popups
 export { GamesPopup } from "./games-popup";
