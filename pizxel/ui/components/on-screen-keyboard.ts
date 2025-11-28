@@ -442,7 +442,7 @@ export class OnScreenKeyboard extends Widget {
             }
           }
           return;
-          
+
         case " ": // Space
           if (this.inputText.length < this.maxLength) {
             this.inputText += " ";
@@ -457,7 +457,7 @@ export class OnScreenKeyboard extends Widget {
     // Handle regular character input
     if (this.inputText.length < this.maxLength) {
       let outputChar: string;
-      
+
       // In symbol mode, use char directly
       if (this.symbolMode) {
         outputChar = key.char;
@@ -471,9 +471,9 @@ export class OnScreenKeyboard extends Widget {
           outputChar = key.char;
         }
       }
-      
+
       this.inputText += outputChar;
-      
+
       // Auto-disable shift after character (only in letter mode)
       if (this.shift && !this.symbolMode) {
         this.shift = false;
@@ -517,7 +517,8 @@ export class OnScreenKeyboard extends Widget {
         return true;
 
       case InputKeys.RIGHT:
-        this.currentCol = (this.currentCol + 1) % this.layout[this.currentRow].length;
+        this.currentCol =
+          (this.currentCol + 1) % this.layout[this.currentRow].length;
         return true;
 
       case InputKeys.OK:
