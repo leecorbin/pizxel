@@ -43,7 +43,7 @@ export class FramebufferDisplayDriver extends DisplayDriver {
 
   /**
    * Set display brightness (0-100)
-   * 0% = backlight off (power-saving mode)
+   * 0% = backlight off (brightness = 0)
    * 1-100% = linear scale from minimum visible to maximum brightness
    * Uses hardware backlight if available, otherwise software dimming
    */
@@ -54,14 +54,9 @@ export class FramebufferDisplayDriver extends DisplayDriver {
       try {
         if (clampedPercent === 0) {
           // Turn off backlight completely at 0%
-          fs.writeFileSync(this.backlightPowerPath, "1"); // 1 = power off
           fs.writeFileSync(this.backlightPath, "0");
         } else {
-          // Power on backlight
-          fs.writeFileSync(this.backlightPowerPath, "0"); // 0 = power on
-          
           // Linear scale from minBacklight to maxBacklight (1-100%)
-          // This gives more even brightness control across the range
           const range = this.maxBacklight - this.minBacklight;
           const brightnessValue = this.minBacklight + Math.round((clampedPercent / 100) * range);
           fs.writeFileSync(this.backlightPath, brightnessValue.toString());
@@ -155,6 +150,15 @@ export class FramebufferDisplayDriver extends DisplayDriver {
   }
 
   async shutdown(): Promise<void> {
+    // Turn off backlight completely (brightness = 0)
+    if (this.hasHardwareBacklight) {
+      try {
+        fs.writeFileSync(this.backlightPath, "0");
+      } catch (error) {
+        // Ignore if we can't control backlight
+      }
+    }
+
     // Clear screen to black first (before closing fd)
     if (this.fbFd !== null && this.fbBuffer) {
       this.fbBuffer.fill(0);
