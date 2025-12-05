@@ -1181,4 +1181,3 @@ export class CanvasServer {
     `.trim();
   }
 }
-
