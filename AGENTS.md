@@ -158,7 +158,10 @@ if (event.key === " ") { ... }                // ✅ same thing
 | `InputKeys.HOME` | ESC (the framework returns to the launcher if the app doesn't handle it) | `"Escape"` |
 | `InputKeys.HELP` | Tab (toggle a `HelpModal`) | `"Tab"` |
 
-Check `event.type === "keydown"` before acting (current drivers only send keydown).
+`onEvent` only receives keydowns (keyups go to the optional `onKeyUp`).
+For smooth movement, read held keys in `onUpdate` with `isKeyDown` /
+`anyKeyDown` from `pizxel/game`, and ignore `event.repeat` keydowns
+(the browser's auto-repeat); `KeyRepeat` gives Tetris-style auto-repeat.
 
 ---
 
@@ -300,7 +303,8 @@ in server mode):
 - `name`, `icon` (an emoji) and `main` are required
 - The scanner uses the exported class named `<Main>App`, the default export, or the first export ending in `App`. The constructor takes no arguments
 - `category: "game"` puts the app in the launcher's Games folder
-- `tier` matters only to the session server: `"core"` (default) is on for every visitor; `"optional"` loads only for sessions that enabled it. Local modes load all apps
+- `tier` matters only to the session server: `"core"` (default) is on for every visitor; `"optional"` loads only for sessions that enabled it; `"private"` only on a private instance (Lee's in-development apps live in his private repo, never this one). Local modes load all apps
+- `network` lists the hosts an app contacts; without it the app gets no network on the server
 
 ### Instances: Local Mode vs Server Mode
 
@@ -317,7 +321,9 @@ Per-instance services (data root, audio, the framework) come from
 **Rules that keep both modes working:**
 - **No module-level mutable state** in apps or shared code. A global `let highScore` or a cached `getAudio()` result would be shared by every session on the server
 - **Build `AppStorage` inside the lifecycle** (constructor/`onActivate`), not at import time, so it resolves to the right data root
-- **Network access** must check `isNetworkAllowed()` (`core/network.ts`). The server turns it off
+- **Network access**: use `fetch()` only, and declare the hosts in `"network"` in `config.json`. On the server a guard (`core/network.ts`) blocks everything else, and the `http`/`https` modules can't leave the machine
+- **Secrets**: API keys go in the vault (`this.secrets`, or `ApiKey` from `core/api-key.ts`), never in `AppStorage`. Mask key fields, never show a saved key, and **never log a key or any part of it**
+- **Time, not frames**: the frame rate varies (60fps locally, 20fps on pizxel.uk, 2fps for an idle tab). Use `deltaTime` and `Ticker`; a counter per frame makes a game run at a third of its speed on the server
 - **Don't assume one display.** Draw through the `matrix` you're given, and don't reach for a driver directly
 
 ### Drivers
@@ -339,7 +345,7 @@ support as a new driver; don't change the framework. See `docs/DISPLAY_MODES.md`
 ### Commands
 
 ```bash
-npm test              # tests/instance-test.ts + tests/server-test.ts
+npm test              # the whole suite: font, vault, drivers, network, instances, server, apps, playability
 npx tsc --noEmit      # type check (same as npm run typecheck)
 npx tsx tests/my-test.ts   # run one test file
 ```
@@ -391,9 +397,9 @@ async function main() {
 main().catch((e) => { console.error("✗", e.message); process.exit(1); });
 ```
 
-⚠️ The `TestRunner` display is a **stub**: it only draws `setPixel`,
+The `TestRunner` draws with the real `DisplayBuffer` (it used to be a stub that only drew `setPixel`,
 `clear`, `fill` and **filled** `rect`. `line`, `circle`, `text` and
-`centeredText` draw nothing in it. Test with filled shapes, or use approach 2.
+`centeredText`...), so any drawing can be tested.
 
 **2. Full instance with test drivers** (`tests/instance-test.ts`)
 
@@ -409,7 +415,7 @@ over HTTP/WebSocket.
 1. **Colour tolerance**: use `findSprite(color, 10)`, not tolerance 0
 2. **Render count**: assert `renderCount >= 1` (or `>= N`), never an exact frame count
 3. **Durations**: give the runner a reasonable `maxDuration` (10 s); a short one makes tests flaky
-4. **Text in TestRunner**: it won't appear (see the stub note above)
+4. **Frame-rate assumptions**: run timing checks at 20fps and 60fps, as `tests/playability-test.ts` does
 5. **Clean up**: call `runner.stop()` / `instance.stop()`, or the process keeps running
 6. **Isolation**: in instance tests, give each instance its own temp `dataRoot` and remove it afterwards
 
@@ -492,13 +498,13 @@ string (use `InputKeys`); not checking `event.type === "keydown"`; forgot
 ### Bug: Works Locally, Breaks on the Server (or Leaks Between Sessions)
 
 **Causes:** module-level state; `AppStorage` created at import time;
-caching `getAudio()`; network calls without `isNetworkAllowed()`. See
+caching `getAudio()`; network calls with the `https` module, or to hosts not in the app's `"network"`. See
 **Instances** above.
 
 ### Bug: Test Can't Find Sprite
 
 **Causes:** tolerance 0; wrong colour; drawn with `circle`/`text`/outline
-`rect` (the TestRunner stub doesn't draw these); didn't wait for a render.
+`rect`; didn't wait for a render.
 
 ---
 
@@ -520,7 +526,8 @@ pizxel/                           # repo root
 │   │   ├── device-manager.ts     # Driver selection
 │   │   ├── notification-manager.ts
 │   │   ├── font.ts               # ZX Spectrum 8×8 font
-│   │   ├── network.ts            # isNetworkAllowed()
+│   │   ├── network.ts            # Network policy and server guard
+│   │   ├── vault.ts              # Encrypted secrets; api-key.ts: ApiKey helper
 │   │   ├── debug.ts              # debugLog() / PIZXEL_DEBUG
 │   │   └── app-storage.ts        # Older per-key storage (used by ScoreManager)
 │   ├── apps/
@@ -540,7 +547,7 @@ pizxel/                           # repo root
 │   ├── audio/                    # Audio API, Sounds
 │   ├── lib/                      # Emoji spritesheet + loader
 │   └── testing/                  # TestRunner, HeadlessDisplay, InputSimulator, Assertions
-├── tests/                        # instance-test.ts, server-test.ts (npm test)
+├── tests/                        # npm test: see docs/API_REFERENCE.md#testing
 ├── docs/
 │   ├── API_REFERENCE.md          # THE SOURCE OF TRUTH for APIs
 │   ├── DISPLAY_MODES.md          # Drivers and troubleshooting
@@ -685,7 +692,7 @@ runner.findSprite([0, 255, 0], 10);
 - ✅ Every visible state change sets `this.dirty = true`; `render()` ends with `this.dirty = false`
 
 **6. Tests That Don't Test Reality**
-- ❌ Exact frame counts, tolerance 0, tiny timeouts, looking for `text()` output in the `TestRunner` stub
+- ❌ Exact frame counts, tolerance 0, tiny timeouts, timing tested at only one frame rate
 - ✅ `>= 1` renders, tolerance 10, `maxDuration` 10 s, filled shapes or a full-instance test
 
 **7. Ignoring the Console**
@@ -741,7 +748,8 @@ runner.findSprite([0, 255, 0], 10);
 - ⚠️ Dirty flag management
 - ⚠️ `onEvent` return values
 - ⚠️ Module-level state (breaks session isolation)
-- ⚠️ The `TestRunner` drawing stub
+- ⚠️ Counting frames instead of using `deltaTime` (games run 3x slow on pizxel.uk)
+- ⚠️ API keys in plain storage or logs: use the vault, never log them
 - ⚠️ Two `AppStorage` classes: use `pizxel/storage`, not `core/app-storage`
 
 ---

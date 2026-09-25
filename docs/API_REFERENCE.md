@@ -12,6 +12,8 @@ in `data/default-user/apps/<id>/`, use `../../../../pizxel/...` instead.
 - [Drawing: DisplayBuffer](#drawing-displaybuffer)
 - [Input](#input)
 - [Storage](#storage)
+- [Secrets (API keys)](#secrets-api-keys)
+- [Network access](#network-access)
 - [Audio](#audio)
 - [Notifications and background work](#notifications-and-background-work)
 - [UI toolkit](#ui-toolkit)
@@ -33,10 +35,10 @@ type RGB = [number, number, number];      // each 0–255
 
 interface InputEvent {
   key: string;                  // "ArrowUp", "Enter", " ", "a", ...
-  type: "keydown" | "keyup";    // current drivers only send "keydown"
+  type: "keydown" | "keyup";    // keyups go to onKeyUp only, never onEvent
   timestamp: number;            // Date.now()
-  repeat?: boolean;
-  source?: string;              // "keyboard", ...
+  repeat?: boolean;             // true for the browser's own auto-repeat
+  source?: string;              // "keyboard" (terminal), "canvas", "websocket"
 }
 ```
 
@@ -54,8 +56,11 @@ interface App {
   onActivate(): void | Promise<void>;
   onDeactivate(): void;
   onUpdate(deltaTime: number): void;       // seconds since last frame
-  onEvent(event: InputEvent): boolean;     // true = handled
+  onEvent(event: InputEvent): boolean;     // keydowns; true = handled
+  onKeyUp?(event: InputEvent): void;       // optional: a key was released
   render(matrix: DisplayBuffer): void;
+
+  secrets?: AppSecrets;                    // set by the framework (see Secrets)
 
   onBackgroundTick?(): void;
   onSaveState?(): any;                     // declared, not called by the framework yet
@@ -72,8 +77,15 @@ the interface, but the framework reads it every frame.
 the session server caps it with `FPS_CAP`). On each frame it:
 
 1. calls `onBackgroundTick()` on every **inactive** registered app, about once a second
-2. calls `onUpdate(deltaTime)` on the **active** app
-3. if the active app's `dirty` is `true`, calls `render(matrix)`, draws any notification on top, and sends the buffer to the display
+2. calls `onUpdate(deltaTime)` on the **active** app. `deltaTime` is in
+   seconds, from a monotonic clock, and never more than 0.1 (after a stall
+   the game slows for a frame rather than jumping)
+3. if the active app's `dirty` is `true`, calls `render(matrix)`, draws any notification on top, and sends the frame to the display
+
+Frames are scheduled against fixed deadlines, so the rate doesn't drift. A
+key that sets `dirty` is drawn straight away rather than at the next frame.
+An app isn't updated, drawn or given input until its (possibly `async`)
+`onActivate` has finished.
 
 Input goes to the active app's `onEvent`. If it returns `false` and the key
 is `Escape`, the framework switches to the launcher.
@@ -83,6 +95,9 @@ returns to the launcher and shows the message there.
 
 ### Rules
 
+- **Time, not frames.** The frame rate varies: 60fps locally, 20fps on
+  pizxel.uk (2fps for a tab left idle). Move things by `speed * deltaTime`
+  and time steps with `Ticker` (see Game helpers), never by counting frames.
 - **No blocking.** No `while (true)`, no busy-waiting, no sync sleeps. Keep state and advance it in `onUpdate`. `async` work (e.g. `fetch`) is fine if it sets `dirty` when it finishes.
 - **Dirty flag.** Set `this.dirty = true` after any change that affects the screen. At the end of `render`, set `this.dirty = false`. Start with `dirty = true` so the first frame draws.
 - **Redraw everything in `render`.** Start with `matrix.clear()` or `matrix.fill(...)`, because the buffer holds the previous frame.
@@ -105,7 +120,8 @@ Read by `pizxel/core/app-scanner.ts` (`AppConfig`).
 | `author` | string | | |
 | `color` | `[r,g,b]` | | Launcher theme colour, default `[255,255,255]` |
 | `category` | string | | `"game"` puts the app in the launcher's Games folder |
-| `tier` | `"core"` \| `"optional"` | | Session server only. `core` (default) is on for everyone; `optional` is loaded only for sessions that enabled it via `PUT /sessions/:id/apps` ([session-api.md](session-api.md)). Local modes ignore it |
+| `tier` | `"core"` \| `"optional"` \| `"private"` | | Session server only. `core` (default) is on for everyone; `optional` is added per session from the app shelf (`PUT /sessions/:id/apps`, [session-api.md](session-api.md)); `private` runs only on a private instance (`INCLUDE_PRIVATE_APPS=true`). Local modes ignore it and load every app |
+| `network` | string[] | | Hosts the app contacts, e.g. `["newsapi.org", "*.example.com"]`. An app without it gets no network; the allowlists are built from these (see [Network access](#network-access)) |
 
 **Where apps are found**, in this order: `pizxel/apps/*/`, then the user apps
 directory. That's `data/default-user/apps/*/` locally, or `EXTRA_APPS_DIR`
@@ -122,7 +138,12 @@ arguments.
 
 `pizxel/core/display-buffer.ts`. This is the `matrix` passed to `render`. It
 is 256×192 by default (the size of the display driver). Origin is top-left.
-Out-of-bounds drawing is clipped silently.
+Out-of-bounds drawing is clipped silently. Coordinates may be fractional
+(time-based movement): they're snapped to whole pixels. Colour values are
+clamped to 0–255 and rounded.
+
+Pixels are stored as one flat RGB byte array, so drawing is cheap; colours
+are copied in, so one `RGB` array can be reused for many pixels.
 
 | Method | Notes |
 |---|---|
@@ -134,13 +155,16 @@ Out-of-bounds drawing is clipped silently.
 | `line(x0, y0, x1, y1, color)` | Bresenham |
 | `rect(x, y, width, height, color, fill = false)` | |
 | `circle(cx, cy, radius, color, fill = false)` | |
-| `text(text, x, y, color, bgColor?, scale = 1)` | ZX Spectrum 8×8 font; each character is `8 * scale` px wide |
+| `text(text, x, y, color, bgColor?, scale = 1)` | ZX Spectrum 48K ROM font; each character is `8 * scale` px wide. Characters not in the font draw as a gap; emoji variation selectors and joiners take no space |
+| `measureText(text, scale = 1): number` | Width in pixels, as `text()` draws it |
 | `centeredText(text, y, color, bgColor?)` | Horizontally centred, scale 1 |
+| `dim(x, y, width, height, factor)` | Darken a rectangle (e.g. behind a pause box): each channel × `factor` |
 | `pushClipRegion(x, y, w, h)` / `popClipRegion()` | Nested clips intersect |
 | `getClipRegion()` | Current clip or `null` |
 | `pushTransform(dx, dy)` / `popTransform()` | Offsets all drawing; transforms add up |
 | `getTransform()` | `{ x, y }` |
-| `getBuffer(): RGB[][]` | Raw `[y][x]` rows, for drivers and tests |
+| `getPixels(): Uint8ClampedArray` | The live frame, `width * height * 3` RGB bytes row by row (drivers and tests) |
+| `getBuffer(): RGB[][]` | A copy as `[y][x]` rows (older code; slow) |
 
 There is **no** `pixel()`, `drawLine()`, `drawRect()`, `ellipse()`,
 `polygon()`, `triangle()` or `show()` on `DisplayBuffer`. Those names came
@@ -180,6 +204,31 @@ The terminal driver and browser inputs are normalised by
 `pizxel/drivers/input/key-map.ts`. Other printable keys arrive as the
 character itself. Ctrl+C in the terminal quits PiZXel.
 
+**Held keys.** For smooth movement, read held state in `onUpdate` and use
+keydowns for an instant response to a press:
+
+```typescript
+import { isKeyDown, anyKeyDown, KeyRepeat } from "../../game";
+
+onUpdate(dt: number): void {
+  if (anyKeyDown(InputKeys.LEFT, "a")) this.x -= 240 * dt;   // glide while held
+  // Tetris-style auto-repeat: 0.17s delay, then every 0.05s
+  for (let n = this.repeatRight.update(isKeyDown(InputKeys.RIGHT), dt); n > 0; n--) this.move(1);
+}
+
+onEvent(event: InputEvent): boolean {
+  if (event.key === InputKeys.LEFT) {
+    if (!event.repeat) this.x -= 8;   // step at once; ignore the browser's repeats
+    return true;
+  }
+  return false;
+}
+```
+
+Browsers (the canvas viewer and pizxel.uk) report key releases. The
+terminal can't, so there a key counts as held briefly after a press, and
+while its auto-repeat keeps arriving. Single letters match either case.
+
 ```typescript
 onEvent(event: InputEvent): boolean {
   if (event.type !== "keydown") return false;
@@ -218,8 +267,64 @@ module load, so it picks up the right instance.
 There is a second, older class with the same name in
 `pizxel/core/app-storage.ts`. It stores one file per key under
 `<data root>/app-data/<app-name>/`, and `get(key, defaultValue)` returns
-`null` when missing. `ScoreManager` uses it. New code should use
-`pizxel/storage`.
+`null` when missing. `ScoreManager` and several apps use it, and existing
+saved data is in its layout, so it stays; new code should use
+`pizxel/storage`. **Never put API keys or passwords in either**: use the
+vault.
+
+---
+
+## Secrets (API keys)
+
+`pizxel/core/vault.ts` and `pizxel/core/api-key.ts`. Each app gets
+`this.secrets`, its own encrypted store (AES-256-GCM; records are bound to
+the app and name, so apps can't read each other's). It's usable while the
+vault is unlocked: on pizxel.uk, while the person's session is live (their
+browser supplies the key); locally, always (the key is in
+`~/.config/pizxel/vault.key`).
+
+```typescript
+// Most apps: one API key, with an operator key from env as fallback
+import { ApiKey } from "../../core/api-key";
+
+private key = new ApiKey(this, this.storage, "NEWSAPI_KEY");
+
+onActivate(): void {
+  this.key.migrate();              // moves a plaintext key from storage into the vault
+}
+
+const apiKey = this.key.get();     // the person's key, else the env key, else ""
+this.key.save(typed);              // "saved", or "pending": completes when the vault unlocks
+this.key.hasOwn();                 // has the person saved one?
+```
+
+`this.secrets` directly: `get(name)` (null if unset or locked),
+`set(name, value)` (false while locked: it completes on unlock, and the
+viewer is asked to unlock), `delete(name)`, `isUnlocked()`,
+`onUnlock(listener)`. It's set after the constructor, so read secrets when
+you need them, not in the constructor.
+
+Show key fields masked (`SettingsDialog` field `type: "password"`) and
+never display a saved key: offer "saved (type to replace)". **Never log a
+key or any part of it.** People see and delete saved keys in
+Settings → Keys.
+
+---
+
+## Network access
+
+Apps fetch with `fetch()` only (not the `http`/`https` modules). Locally the
+network is open. On the session server it's closed unless
+`ALLOW_NETWORK=true`, and then only to the hosts the instance's apps
+declare in `"network"` in their `config.json`; the guard in
+`pizxel/core/network.ts` refuses everything else, whatever the code does.
+Requests go through the egress proxy (`HTTPS_PROXY` +
+`NODE_USE_ENV_PROXY=1`), whose allowlist file is generated from the same
+manifests:
+
+```bash
+npm run egress-allowlist -- <apps dir> --out egress-allowlist.txt   # --public: public tiers only
+```
 
 ---
 
@@ -249,13 +354,13 @@ Microphone input (canvas mode): `getAudioInput()` from
 ## Notifications and background work
 
 An inactive app gets `onBackgroundTick()` about once a second. To ask for
-attention, it calls the `request_foreground` function that the framework
-attaches to the app object the first time the app is activated:
+attention, it calls `request_foreground` (optional in the `App` interface),
+which the framework sets the first time the app is activated:
 
 ```typescript
 onBackgroundTick(): void {
   if (this.timerFinished) {
-    (this as any).request_foreground?.("Timer done!");
+    this.request_foreground?.("Timer done!");
   }
 }
 ```
@@ -316,8 +421,10 @@ See the component files for their options.
 
 - `Sprite`: `new Sprite({ x, y, width, height, color?, vx?, vy?, ax?, ay? })` with `update(dt)`, `render(matrix)`, `getBounds()`, `getCenter()`, `containsPoint()`
 - Collision: `rectRect`, `spriteSprite`, `pointRect`, `circleCircle`, `circleRect`, `getCollisions`, `getCollisionsByTag`, `isOutOfBounds`, `clampToBounds`
-- Physics: `applyGravity`, `applyFriction`, `bounceX`, `bounceY`, `angleBetween`, `distance`, `moveToward`, `reflect`, `paddleBounce`, `wrapAround`, `limitSpeed`
-- Utilities: `ScoreManager` (saves the high score through the older `core/app-storage`), `LivesManager`, `Timer`, `LevelManager`, `PauseManager`
+- Physics: `applyGravity`, `applyFriction(sprite, friction, deltaTime?)` (pass `deltaTime` for the same result at any frame rate), `bounceX`, `bounceY`, `angleBetween`, `distance`, `moveToward`, `reflect`, `paddleBounce`, `wrapAround`, `limitSpeed`
+- Timing: `Ticker(interval)`: `update(dt)` returns how many steps are due, carrying leftover time (e.g. a snake moving every 0.133s at any frame rate); `KeyRepeat(delay, rate)`: auto-repeat for a held key
+- Input: `isKeyDown(key)`, `anyKeyDown(...keys)`
+- Utilities: `ScoreManager` (saves the high score at most once a second, and on `reset()`; `saveHighScore()` saves now), `LivesManager`, `Timer`, `LevelManager`, `PauseManager` (`renderOverlay(matrix)`)
 - Audio re-exports: `getAudio`, `Sounds`, `Audio`
 
 ---
@@ -328,7 +435,8 @@ App icons are emoji rendered from the bundled spritesheet
 (`pizxel/lib/emoji_spritesheet.png` + `.json`) by `getEmojiLoader()` in
 `pizxel/lib/emoji-loader.ts`. Emoji not in the sheet are fetched from a CDN
 only when the network is allowed (`core/network.ts`). The session server
-turns this off.
+turns this off, so pick icons that are in the sheet (they then render
+everywhere, offline included).
 
 ---
 
@@ -349,9 +457,15 @@ const instance = await createInstance({
   scanner: { userAppsPath, include },
   fps,                    // optional frame cap
   startApp,               // optional app name to reopen
+  standby,                // false: no automatic screensaver (server mode)
+  vault,                  // optional Vault; each app gets app.secrets
 });
 await instance.start();
 await instance.stop();
+
+instance.loadedAppIds();          // app ids in the launcher
+await instance.addApp(listing);   // add an app live (e.g. from the app shelf)
+await instance.removeApp(id);     // remove one live (closes it if open)
 ```
 
 Code that needs per-instance services calls `getAudio()`,
@@ -369,6 +483,12 @@ session.
 and `InputDriver` classes. A display driver sets `priority` and `name`,
 implements `initialize()`, `shutdown()`, `isAvailable()` and `show()`, and
 inherits a 256×192 `buffer` with `setPixel`/`getPixel`/`clear`/`fill`.
+
+The framework hands each frame to `showPixels(pixels: Uint8ClampedArray)`
+(RGB bytes). By default that copies into `buffer` and calls `show()`, so a
+simple driver only needs `show()`. Fast drivers override `showPixels` and
+use the bytes directly, sending or redrawing only what changed (the
+framebuffer, terminal, canvas and session drivers do).
 
 | Driver | File | Priority |
 |---|---|---|
@@ -417,25 +537,31 @@ Assertions (also on `runner`): `assertPixelColor`, `assertColorCount`,
 `assertSpriteExists`, `assertSpriteMoved`, `assertRenderCount`,
 `assertTrue`, `assertFalse`, `assertEqual`, `assertNotNull`.
 
-**Limitations:**
-- The runner's display is a stub that only draws `setPixel`, `clear`,
-  `fill` and filled `rect`. `line`, `circle`, `text` and `centeredText`
-  draw nothing, so test with filled shapes or use a full instance (below).
-- It is fixed at 256×192, runs the app alone (no launcher, no ESC handling)
-  and has no log capture. Apps log with `console.log`.
+**Limitations:** it is fixed at 256×192, runs the app alone (no launcher,
+no ESC handling) and has no log capture. Apps log with `console.log`.
 
 ### Full-instance tests
 
 For real rendering and multi-app behaviour, build an instance with a test
 display driver, as `tests/instance-test.ts` does: subclass `DisplayDriver`
 and `InputDriver`, pass them to `DeviceManager.useDrivers()`, then call
-`createInstance()`. `tests/server-test.ts` tests the session server over
-HTTP and WebSocket.
+`createInstance()`. The suite:
+
+| Test | Covers |
+|---|---|
+| `font-test.ts` | The font matches the ZX Spectrum 48K ROM (skipped without jsspeccy3) |
+| `vault-test.ts` | Encryption, wrong keys, per-app scoping, key file, migration |
+| `terminal-test.ts`, `framebuffer-test.ts` | Drivers draw exactly the right output, and only what changed |
+| `network-test.ts` | The server's network guard and allowlist |
+| `instance-test.ts` | Several instances in one process stay isolated |
+| `server-test.ts` | The session server over HTTP and WebSocket |
+| `apps-test.ts` | Every app opens, takes keys, draws and doesn't crash |
+| `playability-test.ts` | Same speed at 20 and 60fps; held keys; quick turns |
 
 ### Commands
 
 ```bash
-npm test              # tests/instance-test.ts + tests/server-test.ts
+npm test              # the whole suite
 npx tsc --noEmit      # type check (npm run typecheck)
 npx tsx tests/my-test.ts
 ```
@@ -449,4 +575,6 @@ npx tsx tests/my-test.ts
 | `CANVAS_PORT` | canvas | `3001` | Browser display port |
 | `CANVAS_PIXEL_SIZE` | canvas | `3` | Screen pixels per PiZXel pixel |
 | `PIZXEL_DEBUG` | any | off | Per-frame and per-key debug logging |
-| `ENGINE_TOKEN`, `PORT`, `DATA_ROOT`, `MAX_LIVE_SESSIONS`, `FPS_CAP`, `IDLE_SUSPEND_SECONDS`, `EXTRA_APPS_DIR` | server | | See the README's Session Server section |
+| `PIZXEL_DATA_ROOT` | local | `data/default-user` | Where saved data lives (e.g. test without touching your own) |
+| `PIZXEL_VAULT_KEY_FILE` | local | `~/.config/pizxel/vault.key` | The local vault key (owner-only; created once, never overwritten) |
+| `ENGINE_TOKEN`, `PORT`, `DATA_ROOT`, `MAX_LIVE_SESSIONS`, `FPS_CAP`, `IDLE_SUSPEND_SECONDS`, `EXTRA_APPS_DIR`, `INCLUDE_PRIVATE_APPS`, `ALLOW_NETWORK` | server | | See the README's Session Server section and [session-api.md](session-api.md) |

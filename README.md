@@ -162,7 +162,8 @@ An app is a folder containing a `config.json` and a TypeScript file whose class 
 | `version`, `description`, `author` | no | Metadata |
 | `color` | no | `[r, g, b]` theme colour for the launcher (default white) |
 | `category` | no | `"game"` puts the app in the launcher's Games folder |
-| `tier` | no | Session server only: `"core"` (default) means on for every visitor; `"optional"` means off until the website enables it for a session. Local modes load every app regardless of tier |
+| `tier` | no | Session server only: `"core"` (default) means on for every visitor; `"optional"` means off until the visitor adds it from the app shelf; `"private"` runs only on a private instance. Local modes load every app regardless of tier |
+| `network` | no | Hosts the app contacts, e.g. `["newsapi.org"]`. Without it the app gets no network on the server |
 
 The scanner loads the class exported as `<Main>App` (e.g. `HelloApp` for `hello.ts`), an export named after `main`, the default export, or else the first export whose name ends in `App`.
 
@@ -224,7 +225,7 @@ The framework calls these methods on your app (defined in [pizxel/types/index.ts
 |---|---|
 | `onActivate()` | The app comes to the foreground. May be `async` |
 | `onDeactivate()` | The app goes to the background or PiZXel stops |
-| `onUpdate(deltaTime)` | Every frame while active; `deltaTime` is in **seconds** |
+| `onUpdate(deltaTime)` | Every frame while active; `deltaTime` is in **seconds** (at most 0.1). The frame rate varies (60fps locally, 20fps on pizxel.uk), so move by `speed * deltaTime`, never per frame |
 | `onEvent(event)` | A key was pressed. Return `true` if you handled it |
 | `render(matrix)` | Called after `onUpdate` whenever `dirty` is `true`. Draw everything, then set `dirty = false` |
 | `onBackgroundTick()` | Optional. About once a second while the app is inactive |
@@ -307,7 +308,9 @@ pizxel/
 │   │   ├── device-manager.ts  # Picks display/input drivers by priority
 │   │   ├── notification-manager.ts
 │   │   ├── font.ts            # ZX Spectrum 8×8 font
-│   │   ├── network.ts         # Outbound network policy (off in server mode)
+│   │   ├── network.ts         # Outbound network policy and guard (off in server mode)
+│   │   ├── vault.ts           # Encrypted secrets (API keys) per instance
+│   │   ├── api-key.ts         # ApiKey helper: an app's key from the vault
 │   │   └── debug.ts           # PIZXEL_DEBUG logging
 │   ├── apps/
 │   │   ├── launcher.ts        # Launcher (always loaded)
@@ -337,7 +340,7 @@ pizxel/
 ## 🧪 Testing
 
 ```bash
-npm test              # Instance isolation + session server tests
+npm test              # The whole suite (see docs/API_REFERENCE.md#testing)
 npx tsc --noEmit      # Type check (also: npm run typecheck)
 ```
 
@@ -376,7 +379,7 @@ main().catch((error) => {
 });
 ```
 
-**Limitation:** the `TestRunner` mock display only draws `setPixel`, `clear`, `fill` and filled `rect`. `line`, `circle`, `text` and `centeredText` draw nothing in it. To check those, run a full instance with a test display driver as [tests/instance-test.ts](tests/instance-test.ts) does.
+The `TestRunner` draws with the real `DisplayBuffer`, so text, lines and circles show up in tests. To test an app inside the launcher, or several apps, run a full instance with a test display driver as [tests/instance-test.ts](tests/instance-test.ts) does.
 
 To make it part of `npm test`, add the file to the `test` script in `package.json`.
 

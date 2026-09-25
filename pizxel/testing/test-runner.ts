@@ -9,6 +9,7 @@ import { HeadlessDisplay } from "./headless-display";
 import { InputSimulator } from "./input-simulator";
 import { Assertions } from "./assertions";
 import { RGB } from "../types/index";
+import { DisplayBuffer } from "../core/display-buffer";
 
 export class TestRunner {
   display: HeadlessDisplay;
@@ -18,6 +19,7 @@ export class TestRunner {
   private frameLoopHandle: any;
   private startTime: number = 0;
   private maxDuration: number;
+  private matrix: DisplayBuffer = new DisplayBuffer(256, 192);
 
   constructor(maxDuration: number = 10.0) {
     this.display = new HeadlessDisplay();
@@ -64,65 +66,11 @@ export class TestRunner {
     // Update app
     this.appInstance.onUpdate(1 / 60); // ~16.67ms
 
-    // Render if dirty
+    // Render if dirty, into a real DisplayBuffer (kept across frames, as
+    // the framework does), so every drawing method works in tests
     if (this.appInstance.dirty) {
-      const displayBuffer = {
-        getBuffer: () => {
-          // Create a mock display buffer
-          const mockBuffer: RGB[][] = Array.from({ length: 192 }, () =>
-            Array.from({ length: 256 }, () => [0, 0, 0] as RGB)
-          );
-          this.appInstance.render({
-            getBuffer: () => mockBuffer,
-            setPixel: (x: number, y: number, color: RGB) => {
-              if (x >= 0 && x < 256 && y >= 0 && y < 192) {
-                mockBuffer[y][x] = color;
-              }
-            },
-            clear: () => {
-              for (let y = 0; y < 192; y++) {
-                for (let x = 0; x < 256; x++) {
-                  mockBuffer[y][x] = [0, 0, 0];
-                }
-              }
-            },
-            fill: (color: RGB) => {
-              for (let y = 0; y < 192; y++) {
-                for (let x = 0; x < 256; x++) {
-                  mockBuffer[y][x] = color;
-                }
-              }
-            },
-            // Add other DisplayBuffer methods as needed
-            line: () => {},
-            rect: (
-              x: number,
-              y: number,
-              w: number,
-              h: number,
-              color: RGB,
-              fill: boolean
-            ) => {
-              if (fill) {
-                for (let dy = 0; dy < h; dy++) {
-                  for (let dx = 0; dx < w; dx++) {
-                    const px = x + dx;
-                    const py = y + dy;
-                    if (px >= 0 && px < 256 && py >= 0 && py < 192) {
-                      mockBuffer[py][px] = color;
-                    }
-                  }
-                }
-              }
-            },
-            circle: () => {},
-            text: () => {},
-            centeredText: () => {},
-          });
-          return mockBuffer;
-        },
-      };
-
+      const displayBuffer = this.matrix;
+      this.appInstance.render(displayBuffer);
       this.display.captureFrame(displayBuffer);
     }
 

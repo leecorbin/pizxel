@@ -162,7 +162,7 @@ export class AppFramework {
     this.activeApp = app;
 
     // Wire up request_foreground callback
-    (app as any).request_foreground = (message?: string) => {
+    app.request_foreground = (message?: string) => {
       this.notificationManager.requestForeground(
         app,
         message || "Needs attention",

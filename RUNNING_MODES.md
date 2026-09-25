@@ -1,13 +1,18 @@
 # PiZXel - Running Modes
 
-PiZXel supports two display modes for development and deployment.
+PiZXel runs on three displays: a Raspberry Pi framebuffer, a browser canvas
+and the terminal. `npm start` picks the best one available (framebuffer →
+canvas → terminal); the `start:*` scripts force one. The session server for
+pizxel.uk (`npm run start:server`) is separate: see the README.
 
-## Terminal Mode (Default)
+There's no build step: `tsx` runs the TypeScript directly.
+
+## Terminal Mode
 
 Run PiZXel with terminal-based display using Unicode block characters:
 
 ```bash
-npm start
+npm run start:term
 ```
 
 **Features:**
@@ -61,20 +66,13 @@ npm run start:canvas
 ## Quick Start
 
 ```bash
-# Build TypeScript
-npm run build
-
-# Terminal mode (fastest)
-npm start
-
-# Canvas mode (with browser display)
-npm run start:canvas
-
-# Run tests
-npm test
-
-# Clean build
-npm run clean && npm run build
+npm ci                   # Install dependencies (once)
+npm start                # Best display available
+npm run start:term       # Terminal
+npm run start:canvas     # Browser canvas at http://localhost:3001
+npm run start:fb         # Raspberry Pi framebuffer
+npm test                 # The test suite
+npx tsc --noEmit         # Type check
 ```
 
 ## Development Workflow
@@ -82,20 +80,20 @@ npm run clean && npm run build
 ### Local Development (Mac/Linux/Windows)
 
 ```bash
-# Watch mode for development
-npm run dev
-
-# In another terminal, run terminal mode
-npm start
-
-# Or run canvas mode to see in browser
+# Browser canvas (keyboard works in the browser page)
 npm run start:canvas
+
+# Or the terminal
+npm run start:term
+
+# Test without touching your own saved data
+PIZXEL_DATA_ROOT=/tmp/pizxel-test npm run start:canvas
 ```
 
 ### Raspberry Pi Deployment
 
 ```bash
-# On Pi, terminal mode is default
+# On a Pi with a display, npm start uses the framebuffer
 npm start
 
 # Or use canvas mode for remote viewing

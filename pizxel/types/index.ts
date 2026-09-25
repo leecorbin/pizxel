@@ -57,6 +57,12 @@ export interface App {
    */
   secrets?: import("../core/vault").AppSecrets;
 
+  /**
+   * Set by the framework: call it (e.g. from onBackgroundTick) to ask to come
+   * to the foreground; a notification appears and Enter switches to this app
+   */
+  request_foreground?: (message?: string) => void;
+
   // Optional lifecycle methods
   onBackgroundTick?(): void;
   onSaveState?(): any;
