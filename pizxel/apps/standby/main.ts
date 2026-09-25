@@ -79,9 +79,15 @@ export class StandbyApp implements App {
     this.storage = new AppStorage("standby");
 
     // Load per-mode settings from storage
+    // Merged onto the defaults, so settings saved by an older version (or
+    // missing a mode) can't leave a mode without settings
     const savedModeSettings = this.storage.get("mode_settings");
-    if (savedModeSettings) {
-      this.modeSettings = savedModeSettings;
+    if (savedModeSettings && typeof savedModeSettings === "object") {
+      for (const mode of Object.keys(this.modeSettings) as AnimationMode[]) {
+        if (savedModeSettings[mode] && typeof savedModeSettings[mode] === "object") {
+          this.modeSettings[mode] = { ...this.modeSettings[mode], ...savedModeSettings[mode] };
+        }
+      }
     }
     const savedOverlayBrightness =
       this.storage.get<number>("overlay_brightness");
@@ -91,7 +97,7 @@ export class StandbyApp implements App {
 
     // Load settings
     const savedMode = this.storage.get<AnimationMode>("animation_mode");
-    if (savedMode) {
+    if (savedMode && savedMode in this.modeSettings) {
       this.animationMode = savedMode;
     }
 

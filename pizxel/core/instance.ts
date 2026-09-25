@@ -99,16 +99,15 @@ export async function createInstance(
     }
     context.appFramework = framework;
 
-    // Load and apply saved brightness setting
+    // Load and apply saved brightness and volume settings
     const settingsStorage = new AppStorage("settings");
     const brightnessStr = settingsStorage.get("brightness");
-    if (brightnessStr) {
-      const brightness = parseInt(brightnessStr);
-      const display = deviceManager.getDisplay();
-      if (display && typeof (display as any).setBrightness === "function") {
-        (display as any).setBrightness(brightness);
-        console.log(`Display brightness set to ${brightness}%`);
-      }
+    if (brightnessStr && framework.setDisplayBrightness(parseInt(brightnessStr))) {
+      console.log(`Display brightness set to ${brightnessStr}%`);
+    }
+    const volumeStr = settingsStorage.get("volume");
+    if (volumeStr && context.audio) {
+      context.audio.setVolume(parseInt(volumeStr) / 100);
     }
 
     // Create launcher

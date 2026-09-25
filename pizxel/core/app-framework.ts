@@ -36,6 +36,12 @@ export class AppFramework {
 
   private standbyEnabled: boolean = true;
 
+  // App whose (async) onActivate hasn't finished: it isn't updated, drawn or
+  // given input until it has
+  private activating: App | null = null;
+  // Notification on screen at the last render (to redraw when it changes)
+  private shownNotification: unknown = null;
+
   /**
    * Called when Escape is pressed at the launcher and nothing handles it
    * (e.g. so a web viewer can leave full screen)
@@ -83,6 +89,17 @@ export class AppFramework {
    */
   setStandbyEnabled(enabled: boolean): void {
     this.standbyEnabled = enabled;
+  }
+
+  /**
+   * Set the display's brightness (0-100), if the display supports it
+   * (e.g. the Pi framebuffer). Returns whether it did.
+   */
+  setDisplayBrightness(percent: number): boolean {
+    const display = this.deviceManager.getDisplay() as any;
+    if (typeof display.setBrightness !== "function") return false;
+    display.setBrightness(percent);
+    return true;
   }
 
   /**
@@ -153,7 +170,15 @@ export class AppFramework {
       );
     };
 
-    await this.activeApp.onActivate();
+    this.activating = app;
+    try {
+      await app.onActivate();
+    } catch (error) {
+      if (this.activating === app) this.activating = null;
+      this.handleAppError(app, error);
+      return;
+    }
+    if (this.activating === app) this.activating = null;
 
     console.log(`Switched to app: ${app.name}`);
   }
@@ -248,8 +273,14 @@ export class AppFramework {
       this.lastBackgroundTick = now;
     }
 
-    // Update active app
-    if (this.activeApp) {
+    // Redraw when a notification appears or goes, even if the app is idle
+    const notification = this.notificationManager.getCurrent();
+    if (notification !== this.shownNotification && this.activeApp) {
+      (this.activeApp as any).dirty = true;
+    }
+
+    // Update active app (once it has finished activating)
+    if (this.activeApp && this.activating !== this.activeApp) {
       try {
         this.activeApp.onUpdate(deltaTime);
 
@@ -339,7 +370,12 @@ export class AppFramework {
     this.earlyRenderQueued = true;
     setImmediate(() => {
       this.earlyRenderQueued = false;
-      if (!this.running || !this.activeApp || !(this.activeApp as any).dirty) {
+      if (
+        !this.running ||
+        !this.activeApp ||
+        this.activating === this.activeApp ||
+        !(this.activeApp as any).dirty
+      ) {
         return;
       }
       // Don't render faster than the frame rate
@@ -391,6 +427,7 @@ export class AppFramework {
 
       // Render notification overlay if present
       this.notificationManager.renderOverlay(this.displayBuffer);
+      this.shownNotification = this.notificationManager.getCurrent();
 
       // Copy buffer to display driver
       const display = this.deviceManager.getDisplay();
@@ -446,6 +483,11 @@ export class AppFramework {
       return;
     }
 
+    // The app is still starting up
+    if (this.activating === this.activeApp) {
+      return;
+    }
+
     try {
       // Check if notification is showing and Enter is pressed
       const notification = this.notificationManager.getCurrent();
@@ -456,6 +498,7 @@ export class AppFramework {
           console.log(
             `[AppFramework] Switching to requesting app: ${requestingApp.name}`
           );
+          this.notificationManager.dismiss();
           this.switchToApp(requestingApp);
           return;
         }

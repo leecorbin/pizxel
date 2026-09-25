@@ -404,15 +404,18 @@ export class TimerApp implements App {
     const y = matrix.getHeight() - 30;
     const color: [number, number, number] = [128, 128, 128];
 
+    // Two short lines each, so they fit the screen
     if (this.state === TimerState.IDLE) {
-      matrix.text("↕ Adjust  ← → Switch  Enter Start", 10, y, color);
+      matrix.centeredText("↑↓ Adjust  ←→ Switch", y, color);
+      matrix.centeredText("Enter Start", y + 12, color);
     } else if (
       this.state === TimerState.RUNNING ||
       this.state === TimerState.PAUSED
     ) {
-      matrix.text("Space Pause/Resume  Backspace Reset", 10, y, color);
+      matrix.centeredText("Space Pause/Resume", y, color);
+      matrix.centeredText("Backspace Reset", y + 12, color);
     } else if (this.state === TimerState.EXPIRED) {
-      matrix.text("Press any key to reset", 60, y, color);
+      matrix.centeredText("Press any key to reset", y, color);
     }
   }
 

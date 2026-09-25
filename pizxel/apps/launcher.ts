@@ -42,7 +42,7 @@ export class LauncherApp implements App {
     { key: "Arrow Keys", action: "Navigate apps" },
     { key: "Enter/Space", action: "Launch app" },
     { key: "Tab", action: "Show help" },
-    { key: "ESC", action: "Exit PiZXel" },
+    { key: "ESC", action: "Back from an app" },
   ]);
 
   // Layout configuration for 256×192 with top and bottom bars (16px each)
@@ -275,12 +275,7 @@ export class LauncherApp implements App {
       case "A":
         if (this.selectedIndex > 0) {
           this.selectedIndex--;
-          const audio = getAudio();
-          console.log(`[Launcher] Audio available: ${audio ? "YES" : "NO"}`);
-          if (audio) {
-            console.log(`[Launcher] Playing SELECT sound`);
-            audio.play(Sounds.SELECT);
-          }
+          getAudio()?.play(Sounds.SELECT);
           handled = true;
         }
         break;
@@ -361,7 +356,10 @@ export class LauncherApp implements App {
         // Launch selected app or open folder
         const selected = this.apps[this.selectedIndex];
 
-        if (selected.isFolder) {
+        if (!selected) {
+          // No apps (yet): nothing to launch
+          handled = true;
+        } else if (selected.isFolder) {
           // Open Games popup
           console.log("Opening Games folder");
           getAudio()?.play(Sounds.COIN);
@@ -398,15 +396,26 @@ export class LauncherApp implements App {
     // Draw bottom bar
     this.drawBottomBar(matrix);
 
-    // Draw app icons in grid
-    for (let i = 0; i < this.apps.length; i++) {
-      const row = Math.floor(i / this.cols);
-      const col = i % this.cols;
+    // Draw app icons in grid, a page (rows × cols) at a time: the page with
+    // the selected icon
+    const perPage = this.cols * this.rows;
+    const page = Math.floor(this.selectedIndex / perPage);
+    const pages = Math.max(1, Math.ceil(this.apps.length / perPage));
+    const first = page * perPage;
+    for (let i = first; i < Math.min(this.apps.length, first + perPage); i++) {
+      const row = Math.floor((i - first) / this.cols);
+      const col = (i - first) % this.cols;
 
       const x = this.startX + col * (this.iconSize + this.colSpacing);
       const y = this.startY + row * (this.iconSize + this.rowSpacing);
 
       this.drawIcon(matrix, this.apps[i], x, y, i === this.selectedIndex);
+    }
+
+    // Page indicator (only with more than one page)
+    if (pages > 1 && !this.errorMessage) {
+      const label = `${page + 1}/${pages}`;
+      matrix.text(label, 256 - label.length * 8 - 4, 180, [150, 150, 150]);
     }
 
     // Render games popup on top if visible

@@ -43,7 +43,8 @@ export class OnScreenKeyboard extends Widget {
   // Animation state
   private isVisible = false;
   private slideProgress = 0; // 0 = hidden, 1 = fully visible
-  private animationSpeed = 0.15; // Speed of slide animation
+  private animationSpeed = 9; // Slide speed (fraction of the slide per second)
+  private cursorShown = false; // Blink phase last reported by update()
 
   // State
   private currentRow = 0;
@@ -290,7 +291,7 @@ export class OnScreenKeyboard extends Widget {
     if (
       this.inputText.length < this.maxLength &&
       this.focused &&
-      Date.now() % 1000 < 500
+      this.cursorShown
     ) {
       const cursorX =
         x +
@@ -558,22 +559,35 @@ export class OnScreenKeyboard extends Widget {
     }
   }
 
-  public update(deltaTime: number): void {
+  /**
+   * Advance the slide animation and cursor blink (time-based). Returns true
+   * when the keyboard looks different and needs redrawing, including the
+   * frame the slide finishes on.
+   */
+  public update(deltaTime: number): boolean {
+    let changed = false;
+    const step = this.animationSpeed * deltaTime;
+
     // Animate slide
     if (this.isVisible && this.slideProgress < 1) {
-      this.slideProgress = Math.min(
-        1,
-        this.slideProgress + this.animationSpeed
-      );
+      this.slideProgress = Math.min(1, this.slideProgress + step);
+      changed = true;
     } else if (!this.isVisible && this.slideProgress > 0) {
-      this.slideProgress = Math.max(
-        0,
-        this.slideProgress - this.animationSpeed
-      );
+      this.slideProgress = Math.max(0, this.slideProgress - step);
       if (this.slideProgress === 0) {
         this.visible = false; // Hide completely when animation done
       }
+      changed = true;
     }
+
+    // Cursor blink (twice a second)
+    const cursorShown = this.isVisible && Date.now() % 1000 < 500;
+    if (cursorShown !== this.cursorShown) {
+      this.cursorShown = cursorShown;
+      changed = true;
+    }
+
+    return changed;
   }
 
   public isAnimating(): boolean {

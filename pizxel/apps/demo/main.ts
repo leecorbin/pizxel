@@ -78,8 +78,13 @@ export class DemoApp implements App {
 
   onUpdate(deltaTime: number): void {
     this.tabView.update(deltaTime);
-    // TabView will mark itself dirty internally
-    this.dirty = true;
+    // Redraw every frame only while the tab shown is animating (spinners, a
+    // running visual demo); otherwise only after input. On pizxel.uk every
+    // redraw is a frame sent to the viewer.
+    const content = this.tabView.getActiveTab().content as any;
+    if (content.isAnimating?.()) {
+      this.dirty = true;
+    }
   }
 
   onBackgroundTick(): void {}
@@ -118,7 +123,7 @@ export class DemoApp implements App {
     matrix.text("PiZXel DEMO", 8, 4, [100, 180, 255]);
 
     // Instructions (right side of title bar)
-    matrix.text("TAB:Help", 195, 4, [120, 120, 120]);
+    matrix.text("TAB:Help", 188, 4, [120, 120, 120]);
 
     // Render tab view
     this.tabView.render(matrix);

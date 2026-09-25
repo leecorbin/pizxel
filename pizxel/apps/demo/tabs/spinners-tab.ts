@@ -65,4 +65,9 @@ class SpinnersTabContainer extends Container {
       spinner.update(deltaTime);
     }
   }
+
+  /** Spinners are always moving */
+  isAnimating(): boolean {
+    return true;
+  }
 }

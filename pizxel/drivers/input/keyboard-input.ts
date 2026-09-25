@@ -25,7 +25,7 @@ export class KeyboardInputDriver extends InputDriver {
     process.stdin.setEncoding("utf8");
 
     // Listen for key presses
-    process.stdin.on("data", this.handleKeyPress.bind(this));
+    process.stdin.on("data", (chunk: string) => this.handleChunk(chunk));
 
     console.log("Keyboard input initialized");
   }
@@ -72,6 +72,19 @@ export class KeyboardInputDriver extends InputDriver {
     // Keyboard is always available if stdin exists
     return process.stdin !== undefined;
   }
+
+  /**
+   * stdin can deliver several keys in one chunk (e.g. when a frame is slow):
+   * split it into escape sequences and single characters
+   */
+  private handleChunk(chunk: string): void {
+    const keys = chunk.match(KeyboardInputDriver.KEY_PATTERN) ?? [];
+    for (const key of keys) {
+      this.handleKeyPress(key);
+    }
+  }
+
+  private static readonly KEY_PATTERN = /\x1b\[[0-9;]*[A-Za-z~]|[\s\S]/gu;
 
   private handleKeyPress(key: string): void {
     if (key === "\u0003") {

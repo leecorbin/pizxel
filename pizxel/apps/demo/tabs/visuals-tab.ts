@@ -219,6 +219,11 @@ class VisualsTabContainer extends Container {
     }
   }
 
+  /** Animating while a demo runs (the menu is static) */
+  isAnimating(): boolean {
+    return this.activeDemo !== null;
+  }
+
   handleEvent(event: InputEvent): boolean {
     // If viewing a demo, ESC returns to menu
     if (this.activeDemo && event.key === InputKeys.BACK) {
@@ -277,11 +282,10 @@ class VisualsTabContainer extends Container {
         [150, 150, 150]
       );
     } else {
-      // Render demo menu
-      matrix.text("VISUAL DEMOS", 10, 10, [100, 180, 255]);
-      matrix.text("Select a demo:", 10, 30, [150, 150, 150]);
+      // Render demo menu (below the title and tab bars)
+      matrix.text("VISUAL DEMOS", 10, 44, [100, 180, 255]);
 
-      let y = 50;
+      let y = 58;
       this.demos.forEach((demo, index) => {
         const isSelected = index === this.selectedIndex;
 
@@ -295,7 +299,7 @@ class VisualsTabContainer extends Container {
         const descColor: RGB = isSelected ? [180, 180, 180] : [120, 120, 120];
         matrix.text(demo.description, 15, y + 12, descColor);
 
-        y += 28;
+        y += 26;
       });
     }
   }

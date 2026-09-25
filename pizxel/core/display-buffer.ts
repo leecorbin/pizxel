@@ -52,6 +52,9 @@ export class DisplayBuffer {
     return this.buffer;
   }
 
+  /** Characters text() draws as nothing, taking no space */
+  private static readonly ZERO_WIDTH = /^[\u200B-\u200D\uFE00-\uFE0F]$/;
+
   /**
    * Set a single pixel
    */
@@ -350,6 +353,9 @@ export class DisplayBuffer {
     let cursorX = x;
 
     for (const char of text) {
+      // Invisible joiners and emoji variation selectors take no space
+      if (DisplayBuffer.ZERO_WIDTH.test(char)) continue;
+
       const bitmap = defaultFont.getChar(char);
 
       if (!bitmap) {
@@ -389,8 +395,19 @@ export class DisplayBuffer {
   /**
    * Draw centered text
    */
+  /**
+   * Width of text in pixels, as text() draws it
+   */
+  measureText(text: string, scale: number = 1): number {
+    let chars = 0;
+    for (const char of text) {
+      if (!DisplayBuffer.ZERO_WIDTH.test(char)) chars++;
+    }
+    return chars * defaultFont.charWidth * scale;
+  }
+
   centeredText(text: string, y: number, color: RGB, bgColor?: RGB): void {
-    const textWidth = text.length * defaultFont.charWidth;
+    const textWidth = this.measureText(text);
     const x = Math.floor((this.width - textWidth) / 2);
     this.text(text, x, y, color, bgColor);
   }

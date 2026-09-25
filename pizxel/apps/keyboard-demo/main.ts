@@ -46,9 +46,8 @@ export class KeyboardDemoApp implements App {
   onDeactivate(): void {}
 
   onUpdate(deltaTime: number): void {
-    // Update keyboard animation
-    this.keyboard.update(deltaTime);
-    if (this.keyboard.isAnimating()) {
+    // Update keyboard animation and cursor blink
+    if (this.keyboard.update(deltaTime)) {
       this.dirty = true;
     }
   }
