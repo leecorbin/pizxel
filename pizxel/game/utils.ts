@@ -16,6 +16,7 @@ export class ScoreManager {
   private highScore: number = 0;
   private storage: AppStorage;
   private storageKey: string;
+  private saveTimer: NodeJS.Timeout | null = null;
 
   constructor(appName: string, storageKey: string = "highScore") {
     this.storage = new AppStorage(appName);
@@ -32,23 +33,35 @@ export class ScoreManager {
   }
 
   addScore(points: number): void {
-    this.score += points;
-    if (this.score > this.highScore) {
-      this.highScore = this.score;
-      this.storage.set(this.storageKey, this.highScore.toString());
-    }
+    this.setScore(this.score + points);
   }
 
   setScore(score: number): void {
     this.score = score;
     if (this.score > this.highScore) {
       this.highScore = this.score;
-      this.storage.set(this.storageKey, this.highScore.toString());
+      this.scheduleSave();
     }
   }
 
   reset(): void {
+    this.saveHighScore();
     this.score = 0;
+  }
+
+  /** Write the high score now (it's otherwise saved at most once a second) */
+  saveHighScore(): void {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+    this.storage.set(this.storageKey, this.highScore.toString());
+  }
+
+  // Disk writes are synchronous: batch them rather than write every point
+  private scheduleSave(): void {
+    if (this.saveTimer) return;
+    this.saveTimer = setTimeout(() => this.saveHighScore(), 1000);
   }
 
   isNewHighScore(): boolean {

@@ -30,6 +30,10 @@ export * from "./physics";
 // Game utilities
 export * from "./utils";
 
+// Timing (time-based stepping, key auto-repeat) and held-key input
+export * from "./timing";
+export * from "./input";
+
 // Re-export audio for convenience
 export { getAudio } from "../core/instance-context";
 export { Sounds, Audio } from "../audio/audio";

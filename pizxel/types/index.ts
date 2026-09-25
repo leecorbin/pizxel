@@ -46,6 +46,8 @@ export interface App {
   onDeactivate(): void;
   onUpdate(deltaTime: number): void;
   onEvent(event: InputEvent): boolean; // Return true if event handled
+  /** Optional: key released (hold state is also available via isKeyDown) */
+  onKeyUp?(event: InputEvent): void;
   render(matrix: any): void; // DisplayBuffer from core/display-buffer.ts
 
   // Optional lifecycle methods

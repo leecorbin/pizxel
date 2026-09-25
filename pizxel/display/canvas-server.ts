@@ -27,7 +27,9 @@ export class CanvasServer {
   private displayHeight: number = 192;
   private clientCount: number = 0;
   private lastFrame: any = null;
-  private keyCallback: ((key: string) => void) | null = null;
+  private keyCallback:
+    | ((key: string, type: "keydown" | "keyup", repeat: boolean) => void)
+    | null = null;
   private fullscreenMode: boolean = false;
   private audioInputCallback: ((event: string, data: any) => void) | null =
     null;
@@ -81,20 +83,26 @@ export class CanvasServer {
         socket.emit("frame", this.lastFrame);
       }
 
-      // Handle keyboard input from browser
-      socket.on("keydown", (data: { key: string }) => {
-        if (this.keyCallback) {
-          this.keyCallback(data.key);
-        }
+      // Handle keyboard input from browser (tracking held keys, so they can
+      // be released if this browser disconnects)
+      const heldKeys = new Set<string>();
+      socket.on("keydown", (data: { key: string; repeat?: boolean }) => {
+        heldKeys.add(data.key);
+        this.keyCallback?.(data.key, "keydown", data.repeat === true);
+      });
+
+      socket.on("keyup", (data: { key: string }) => {
+        if (data.key === "*") heldKeys.clear();
+        else heldKeys.delete(data.key);
+        this.keyCallback?.(data.key, "keyup", false);
       });
 
       // Handle paste events from browser
       socket.on("paste", (data: { text: string }) => {
-        // Inject each character as a key event
-        if (this.keyCallback) {
-          for (const char of data.text) {
-            this.keyCallback(char);
-          }
+        // Type each character: pressed and released
+        for (const char of data.text) {
+          this.keyCallback?.(char, "keydown", false);
+          this.keyCallback?.(char, "keyup", false);
         }
       });
 
@@ -144,6 +152,8 @@ export class CanvasServer {
       });
 
       socket.on("disconnect", () => {
+        for (const key of heldKeys) this.keyCallback?.(key, "keyup", false);
+        heldKeys.clear();
         this.clientCount--;
         console.log(
           `[CanvasServer] Client disconnected (${this.clientCount} remaining)`
@@ -155,7 +165,9 @@ export class CanvasServer {
   /**
    * Set callback for keyboard events from browser
    */
-  onKey(callback: (key: string) => void): void {
+  onKey(
+    callback: (key: string, type: "keydown" | "keyup", repeat: boolean) => void
+  ): void {
     this.keyCallback = callback;
   }
 
@@ -853,7 +865,19 @@ export class CanvasServer {
       initAudio();
       
       // Send key to server
-      socket.emit('keydown', { key: e.key });
+      socket.emit('keydown', { key: e.key, repeat: e.repeat });
+    });
+
+    // Key releases (for held-key movement in games)
+    document.addEventListener('keyup', (e) => {
+      socket.emit('keyup', { key: e.key });
+    });
+
+    // Don't leave keys held down when the page loses focus
+    const releaseAllKeys = () => socket.emit('keyup', { key: '*' });
+    window.addEventListener('blur', releaseAllKeys);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) releaseAllKeys();
     });
     
     // Paste handling

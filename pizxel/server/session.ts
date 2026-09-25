@@ -45,8 +45,14 @@ interface SessionConfig {
 const MAX_KEY_LENGTH = 32;
 /** Longest `text` (paste) accepted */
 const MAX_TEXT_LENGTH = 256;
-/** Skip frames to a socket that has this much unsent data (slow viewer) */
-const MAX_BUFFERED_BYTES = 1024 * 1024;
+/**
+ * A viewer with more than about a frame still unsent is behind: skip frames
+ * to it (queueing them would only add lag) and send the latest once it
+ * catches up
+ */
+const MAX_BUFFERED_BYTES = 160 * 1024;
+/** How often to check whether a lagging viewer has caught up (ms) */
+const CATCH_UP_CHECK_MS = 20;
 
 /** Microphone messages accepted from the browser */
 const AUDIO_INPUT_TYPES = new Set([
@@ -66,6 +72,11 @@ export class Session implements AudioBridge {
 
   private options: SessionOptions;
   private sockets: Set<WebSocket> = new Set();
+  /** Keys each viewer is holding down, released if it disconnects */
+  private heldKeys: Map<WebSocket, Set<string>> = new Map();
+  /** Viewers that skipped a frame and need the latest one when they catch up */
+  private lagging: Set<WebSocket> = new Set();
+  private catchUpTimer: NodeJS.Timeout | null = null;
   private instance: PizxelInstance | null = null;
   private display: SessionDisplayDriver | null = null;
   private input: SessionInputDriver | null = null;
@@ -199,6 +210,8 @@ export class Session implements AudioBridge {
       scanner: { userAppsPath: this.options.extraAppsDir, include },
       fps: this.options.fps,
       startApp: this.readConfig().lastApp,
+      // No screensaver for web visitors (it would also keep sending frames)
+      standby: false,
     });
     await instance.start();
 
@@ -218,6 +231,10 @@ export class Session implements AudioBridge {
         lastApp: activeApp === "Launcher" ? null : activeApp,
       });
     }
+
+    if (this.catchUpTimer) clearTimeout(this.catchUpTimer);
+    this.catchUpTimer = null;
+    this.lagging.clear();
 
     const instance = this.instance;
     this.instance = null;
@@ -256,7 +273,7 @@ export class Session implements AudioBridge {
     }
 
     ws.on("message", (data, isBinary) => {
-      if (!isBinary) this.handleMessage(data.toString());
+      if (!isBinary) this.handleMessage(ws, data.toString());
     });
     ws.on("close", () => this.detach(ws));
     ws.on("error", () => this.detach(ws));
@@ -273,6 +290,8 @@ export class Session implements AudioBridge {
 
   private detach(ws: WebSocket): void {
     if (!this.sockets.delete(ws)) return;
+    this.lagging.delete(ws);
+    this.releaseKeys(ws);
     this.lastActiveAt = Date.now();
     this.writeMeta();
 
@@ -284,7 +303,19 @@ export class Session implements AudioBridge {
     }
   }
 
-  private handleMessage(raw: string): void {
+  /** Release every key a viewer is holding (it closed or dropped) */
+  private releaseKeys(ws: WebSocket): void {
+    const held = this.heldKeys.get(ws);
+    this.heldKeys.delete(ws);
+    const instance = this.instance;
+    const input = this.input;
+    if (!held || !instance || !input) return;
+    instance.run(() => {
+      for (const key of held) input.handleKeyUp(key);
+    });
+  }
+
+  private handleMessage(ws: WebSocket, raw: string): void {
     let msg: any;
     try {
       msg = JSON.parse(raw);
@@ -301,7 +332,17 @@ export class Session implements AudioBridge {
       case "key":
         if (typeof msg.key === "string" && msg.key.length <= MAX_KEY_LENGTH) {
           this.lastActiveAt = Date.now();
-          instance.run(() => input.handleKey(msg.key));
+          if (!this.heldKeys.has(ws)) this.heldKeys.set(ws, new Set());
+          this.heldKeys.get(ws)!.add(msg.key);
+          instance.run(() => input.handleKey(msg.key, msg.repeat === true));
+        }
+        break;
+
+      case "keyup":
+        if (typeof msg.key === "string" && msg.key.length <= MAX_KEY_LENGTH) {
+          if (msg.key === "*") this.heldKeys.delete(ws);
+          else this.heldKeys.get(ws)?.delete(msg.key);
+          instance.run(() => input.handleKeyUp(msg.key));
         }
         break;
 
@@ -310,7 +351,11 @@ export class Session implements AudioBridge {
           this.lastActiveAt = Date.now();
           const text = msg.text.slice(0, MAX_TEXT_LENGTH);
           instance.run(() => {
-            for (const char of text) input.handleKey(char);
+            // Typed in: each character pressed and released
+            for (const char of text) {
+              input.handleKey(char);
+              input.handleKeyUp(char);
+            }
           });
         }
         break;
@@ -325,13 +370,33 @@ export class Session implements AudioBridge {
 
   private broadcastFrame(frame: Buffer): void {
     for (const ws of this.sockets) {
-      if (
-        ws.readyState === WebSocket.OPEN &&
-        ws.bufferedAmount < MAX_BUFFERED_BYTES
-      ) {
+      if (ws.readyState !== WebSocket.OPEN) continue;
+      if (ws.bufferedAmount < MAX_BUFFERED_BYTES) {
         ws.send(frame, { binary: true });
+        this.lagging.delete(ws);
+      } else {
+        this.lagging.add(ws);
       }
     }
+    this.scheduleCatchUp();
+  }
+
+  /** Send lagging viewers the latest frame as soon as they can take it */
+  private scheduleCatchUp(): void {
+    if (this.catchUpTimer || this.lagging.size === 0) return;
+    this.catchUpTimer = setTimeout(() => {
+      this.catchUpTimer = null;
+      const frame = this.display?.getLastFrame();
+      for (const ws of this.lagging) {
+        if (ws.readyState !== WebSocket.OPEN || !this.sockets.has(ws)) {
+          this.lagging.delete(ws);
+        } else if (frame && ws.bufferedAmount < MAX_BUFFERED_BYTES) {
+          ws.send(frame, { binary: true });
+          this.lagging.delete(ws);
+        }
+      }
+      this.scheduleCatchUp();
+    }, CATCH_UP_CHECK_MS);
   }
 
   private broadcastJSON(message: object): void {

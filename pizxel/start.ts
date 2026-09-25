@@ -116,9 +116,9 @@ async function main() {
   // If canvas mode, setup keyboard forwarding from browser
   if (useCanvas) {
     const inputDriver = deviceManager.getInput();
-    display.getServer().onKey((key: string) => {
-      // Forward keyboard events from browser to input driver
-      (inputDriver as any).injectKey(key);
+    display.getServer().onKey((key, type, repeat) => {
+      // Forward keyboard events (and releases) from browser to input driver
+      (inputDriver as KeyboardInputDriver).injectKeyEvent(key, type, repeat);
     });
   }
 

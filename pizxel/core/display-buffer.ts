@@ -56,9 +56,10 @@ export class DisplayBuffer {
    * Set a single pixel
    */
   setPixel(x: number, y: number, color: RGB): void {
-    // Apply transform
-    x += this.currentTransform.x;
-    y += this.currentTransform.y;
+    // Apply transform, snapping to whole pixels (fractional coordinates, e.g.
+    // from time-based movement, would otherwise index outside the buffer)
+    x = Math.floor(x + this.currentTransform.x);
+    y = Math.floor(y + this.currentTransform.y);
 
     // Check clip region first
     if (this.currentClip) {
@@ -213,6 +214,13 @@ export class DisplayBuffer {
    * Draw a line using Bresenham's algorithm
    */
   line(x0: number, y0: number, x1: number, y1: number, color: RGB): void {
+    // Whole-pixel endpoints: with fractions the loop below would never end
+    x0 = Math.round(x0);
+    y0 = Math.round(y0);
+    x1 = Math.round(x1);
+    y1 = Math.round(y1);
+    if (!Number.isFinite(x0 + y0 + x1 + y1)) return;
+
     const dx = Math.abs(x1 - x0);
     const dy = Math.abs(y1 - y0);
     const sx = x0 < x1 ? 1 : -1;
@@ -252,6 +260,11 @@ export class DisplayBuffer {
     color: RGB,
     fill: boolean = false
   ): void {
+    x = Math.floor(x);
+    y = Math.floor(y);
+    width = Math.round(width);
+    height = Math.round(height);
+
     if (fill) {
       // Filled rectangle
       for (let dy = 0; dy < height; dy++) {
@@ -284,6 +297,10 @@ export class DisplayBuffer {
     color: RGB,
     fill: boolean = false
   ): void {
+    cx = Math.round(cx);
+    cy = Math.round(cy);
+    radius = Math.round(radius);
+
     if (fill) {
       // Filled circle - draw horizontal lines
       for (let y = -radius; y <= radius; y++) {

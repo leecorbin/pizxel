@@ -65,17 +65,41 @@ export class SessionInputDriver extends InputDriver {
     return true;
   }
 
-  /** Handle a browser KeyboardEvent.key value */
-  handleKey(key: string): void {
+  /**
+   * Map a browser KeyboardEvent.key value to a PiZXel key, or null if it
+   * isn't one apps can use
+   */
+  static toEventKey(key: string): string | null {
     const eventKey = mapKey(key);
-    if (eventKey === null) return;
+    if (eventKey === null) return null;
 
     // Drop other control characters (they have no meaning to apps)
-    if (eventKey.length === 1 && eventKey.charCodeAt(0) < 0x20) return;
+    if (eventKey.length === 1 && eventKey.charCodeAt(0) < 0x20) return null;
+    return eventKey;
+  }
+
+  /** A browser keydown (repeat: the browser's auto-repeat) */
+  handleKey(key: string, repeat: boolean = false): void {
+    const eventKey = SessionInputDriver.toEventKey(key);
+    if (eventKey === null) return;
 
     this.emitEvent({
       key: eventKey,
       type: "keydown",
+      timestamp: Date.now(),
+      repeat,
+      source: "websocket",
+    });
+  }
+
+  /** A browser keyup ("*" releases every key) */
+  handleKeyUp(key: string): void {
+    const eventKey = key === "*" ? "*" : SessionInputDriver.toEventKey(key);
+    if (eventKey === null) return;
+
+    this.emitEvent({
+      key: eventKey,
+      type: "keyup",
       timestamp: Date.now(),
       source: "websocket",
     });

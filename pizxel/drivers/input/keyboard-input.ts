@@ -47,6 +47,27 @@ export class KeyboardInputDriver extends InputDriver {
     this.handleKeyPress(key);
   }
 
+  /**
+   * Inject a browser key event with its release (for the canvas viewer,
+   * which reports keyups, unlike the terminal)
+   */
+  injectKeyEvent(
+    key: string,
+    type: "keydown" | "keyup",
+    repeat: boolean = false
+  ): void {
+    const eventKey = key === "*" && type === "keyup" ? "*" : mapKey(key);
+    if (eventKey === null) return;
+    debugLog(`[KeyboardInput] Injecting ${type}: "${eventKey}"`);
+    this.emitEvent({
+      key: eventKey,
+      type,
+      timestamp: Date.now(),
+      repeat,
+      source: "canvas",
+    });
+  }
+
   async isAvailable(): Promise<boolean> {
     // Keyboard is always available if stdin exists
     return process.stdin !== undefined;

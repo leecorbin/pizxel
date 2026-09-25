@@ -39,6 +39,8 @@ export interface InstanceOptions {
   fps?: number;
   /** Name of an app to open after the launcher (e.g. the app open at suspend) */
   startApp?: string | null;
+  /** Automatic standby (screensaver) after idle (default true) */
+  standby?: boolean;
 }
 
 export interface PizxelInstance {
@@ -89,6 +91,9 @@ export async function createInstance(
     const framework = new AppFramework(deviceManager);
     if (options.fps) {
       framework.setTargetFPS(options.fps);
+    }
+    if (options.standby === false) {
+      framework.setStandbyEnabled(false);
     }
     context.appFramework = framework;
 

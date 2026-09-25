@@ -32,6 +32,17 @@ export class AppFramework {
 
   private appBeforeStandby: App | null = null; // Save app to return to
 
+  private standbyEnabled: boolean = true;
+
+  // Frame timing (performance.now(), in ms)
+  private nextFrameTime: number = 0;
+  private lastRenderTime: number = 0;
+  private earlyRenderQueued: boolean = false;
+
+  // Held keys, for isKeyDown(). Keys from sources that never send keyup (the
+  // terminal) are released automatically after a timeout, reset by repeats.
+  private keysDown: Map<string, NodeJS.Timeout | null> = new Map();
+
   constructor(deviceManager: DeviceManager) {
     this.deviceManager = deviceManager;
     this.displayBuffer = new DisplayBuffer(
@@ -56,6 +67,13 @@ export class AppFramework {
   setTargetFPS(fps: number): void {
     this.targetFPS = fps;
     this.frameInterval = 1000 / fps;
+  }
+
+  /**
+   * Turn automatic standby (screensaver after idle) on or off (default on)
+   */
+  setStandbyEnabled(enabled: boolean): void {
+    this.standbyEnabled = enabled;
   }
 
   /**
@@ -130,13 +148,16 @@ export class AppFramework {
     }
 
     this.running = true;
-    this.lastFrameTime = Date.now();
+    this.lastFrameTime = performance.now();
+    this.nextFrameTime = this.lastFrameTime;
 
     // Set up input handler
     this.deviceManager.onInput(this.handleInput.bind(this));
 
     // Start standby manager
-    this.standbyManager.start();
+    if (this.standbyEnabled) {
+      this.standbyManager.start();
+    }
 
     console.log("Event loop started");
 
@@ -150,6 +171,7 @@ export class AppFramework {
   stop(): void {
     this.running = false;
     this.standbyManager.stop();
+    this.releaseAllKeys();
     console.log("Event loop stopped");
   }
 
@@ -161,8 +183,14 @@ export class AppFramework {
       return;
     }
 
-    const now = Date.now();
-    const deltaTime = (now - this.lastFrameTime) / 1000; // Convert to seconds
+    // Monotonic clock (Date.now() jumps when the system clock is set, e.g. by
+    // NTP on a Pi without an RTC). Cap the step so a stall (GC, a slow frame,
+    // laptop sleep) doesn't make games jump or objects pass through walls.
+    const now = performance.now();
+    const deltaTime = Math.min(
+      Math.max(0, (now - this.lastFrameTime) / 1000), // Convert to seconds
+      AppFramework.MAX_DELTA_TIME
+    );
     this.lastFrameTime = now;
 
     // Update notification manager
@@ -189,10 +217,87 @@ export class AppFramework {
       }
     }
 
-    // Schedule next frame
-    const elapsed = Date.now() - now;
-    const delay = Math.max(0, this.frameInterval - elapsed);
-    setTimeout(() => this.frameLoop(), delay);
+    // Schedule the next frame against a fixed deadline, so the frame rate
+    // doesn't drift with the time each frame takes (or setTimeout's lateness)
+    this.nextFrameTime += this.frameInterval;
+    const after = performance.now();
+    if (this.nextFrameTime < after - this.frameInterval) {
+      this.nextFrameTime = after; // Fell more than a frame behind: catch up
+    }
+    setTimeout(() => this.frameLoop(), Math.max(0, this.nextFrameTime - after));
+  }
+
+  /** Largest deltaTime passed to onUpdate, in seconds */
+  static readonly MAX_DELTA_TIME = 0.1;
+
+  /**
+   * Whether a key is currently held down (for smooth movement in games).
+   * Single letters match either case.
+   */
+  isKeyDown(key: string): boolean {
+    return this.keysDown.has(AppFramework.keyStateName(key));
+  }
+
+  private static keyStateName(key: string): string {
+    return key.length === 1 ? key.toLowerCase() : key;
+  }
+
+  private releaseAllKeys(): void {
+    for (const timer of this.keysDown.values()) {
+      if (timer) clearTimeout(timer);
+    }
+    this.keysDown.clear();
+  }
+
+  /**
+   * Track held keys. Returns false for events that shouldn't go further
+   * (keyups, which apps receive only via onKeyUp).
+   */
+  private trackKey(event: InputEvent): boolean {
+    if (event.type === "keyup") {
+      if (event.key === "*") {
+        this.releaseAllKeys();
+      } else {
+        const name = AppFramework.keyStateName(event.key);
+        const timer = this.keysDown.get(name);
+        if (timer) clearTimeout(timer);
+        this.keysDown.delete(name);
+      }
+      return false;
+    }
+
+    const name = AppFramework.keyStateName(event.key);
+    const previous = this.keysDown.get(name);
+    if (previous) clearTimeout(previous);
+
+    // The terminal can't report key releases: treat a key as held until its
+    // auto-repeat stops (repeat delay is ~500ms)
+    const timer =
+      event.source === "keyboard"
+        ? setTimeout(() => this.keysDown.delete(name), 550)
+        : null;
+    this.keysDown.set(name, timer);
+    return true;
+  }
+
+  /**
+   * Draw straight away after input that changed the screen, instead of
+   * waiting for the next frame (up to a whole frame interval later)
+   */
+  private queueEarlyRender(): void {
+    if (this.earlyRenderQueued || !this.running) return;
+    this.earlyRenderQueued = true;
+    setImmediate(() => {
+      this.earlyRenderQueued = false;
+      if (!this.running || !this.activeApp || !(this.activeApp as any).dirty) {
+        return;
+      }
+      // Don't render faster than the frame rate
+      if (performance.now() - this.lastRenderTime < this.frameInterval / 2) {
+        return;
+      }
+      this.render();
+    });
   }
 
   /**
@@ -228,6 +333,7 @@ export class AppFramework {
     }
 
     debugLog("[AppFramework] render() called");
+    this.lastRenderTime = performance.now();
 
     try {
       // Let app render to buffer
@@ -252,6 +358,10 @@ export class AppFramework {
     } catch (error) {
       this.handleAppError(this.activeApp!, error);
     }
+
+    if (this.activeApp && (this.activeApp as any).dirty) {
+      this.queueEarlyRender();
+    }
   }
 
   /**
@@ -259,6 +369,16 @@ export class AppFramework {
    */
   private handleInput(event: InputEvent): void {
     if (!this.activeApp) {
+      return;
+    }
+
+    // Held-key state; keyups go only to apps that ask for them
+    if (!this.trackKey(event)) {
+      try {
+        this.activeApp.onKeyUp?.(event);
+      } catch (error) {
+        this.handleAppError(this.activeApp, error);
+      }
       return;
     }
 
