@@ -30,6 +30,8 @@ export interface InstanceOptions {
    */
   dataRoot?: string;
   scanner?: AppScannerOptions;
+  /** Frame rate cap (default: the framework's 60fps) */
+  fps?: number;
 }
 
 export interface PizxelInstance {
@@ -56,6 +58,9 @@ export async function createInstance(
 
   const appFramework = await runInContext(context, async () => {
     const framework = new AppFramework(deviceManager);
+    if (options.fps) {
+      framework.setTargetFPS(options.fps);
+    }
     context.appFramework = framework;
 
     // Load and apply saved brightness setting

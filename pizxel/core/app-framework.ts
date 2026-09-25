@@ -51,6 +51,14 @@ export class AppFramework {
   }
 
   /**
+   * Set the frame rate (default 60fps)
+   */
+  setTargetFPS(fps: number): void {
+    this.targetFPS = fps;
+    this.frameInterval = 1000 / fps;
+  }
+
+  /**
    * Set the launcher app (used for ESC key)
    */
   setLauncher(launcher: App): void {

@@ -16,10 +16,10 @@ import {
   AudioClassification,
   AudioAnalysis,
 } from "./audio-input-driver";
-import type { CanvasServer } from "../../display/canvas-server";
+import type { AudioBridge } from "./audio-bridge";
 
 export class CanvasAudioInputProxy implements AudioInputDriver {
-  private server: CanvasServer | null = null;
+  private server: AudioBridge | null = null;
   private available: boolean = false;
   private capturing: boolean = false;
 
@@ -33,7 +33,7 @@ export class CanvasAudioInputProxy implements AudioInputDriver {
   private fftSize: number = 2048;
   private smoothing: number = 0.8;
 
-  constructor(server?: CanvasServer) {
+  constructor(server?: AudioBridge) {
     if (server) {
       this.setServer(server);
     }
@@ -42,7 +42,7 @@ export class CanvasAudioInputProxy implements AudioInputDriver {
   /**
    * Set the canvas server (for receiving data from browser)
    */
-  setServer(server: CanvasServer): void {
+  setServer(server: AudioBridge): void {
     this.server = server;
     this.available = true;
 

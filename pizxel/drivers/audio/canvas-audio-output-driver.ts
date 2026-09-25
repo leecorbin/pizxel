@@ -13,14 +13,15 @@ import {
   NoiseParams,
   MelodyParams,
 } from "./audio-output-driver";
-import { CanvasServer } from "../../display/canvas-server";
+import type { AudioBridge } from "./audio-bridge";
+import { debugLog } from "../../core/debug";
 
 export class CanvasAudioOutputDriver implements AudioOutputDriver {
   private volume: number = 0.5;
   private sounds: Map<string, SoundEffect> = new Map();
-  private server: CanvasServer | null = null;
+  private server: AudioBridge | null = null;
 
-  constructor(server: CanvasServer) {
+  constructor(server: AudioBridge) {
     this.server = server;
   }
 
@@ -132,7 +133,7 @@ export class CanvasAudioOutputDriver implements AudioOutputDriver {
 
   beep(frequency: number, duration: number, volume: number = 0.5): void {
     if (!this.server) return;
-    console.log(
+    debugLog(
       `[CanvasAudioOutput] Sending beep: ${frequency}Hz, ${duration}ms, vol=${volume}`
     );
     this.server.sendBeep(frequency, duration, volume * this.volume);

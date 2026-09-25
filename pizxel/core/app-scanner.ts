@@ -18,6 +18,13 @@ export interface AppConfig {
   main: string; // Module name or class name (e.g., "clock" or "ClockApp")
   color?: [number, number, number]; // Optional theme color
   category?: string; // Optional category (e.g., "game", "utility", "media")
+  tier?: "core" | "optional"; // Server mode: core apps are on for everyone (default)
+}
+
+export interface AppListing {
+  id: string; // App directory name (e.g. "clock")
+  config: AppConfig;
+  path: string;
 }
 
 export interface ScannedApp {
@@ -32,11 +39,14 @@ export interface AppScannerOptions {
    * project root; null disables user apps (server mode).
    */
   userAppsPath?: string | null;
+  /** Load only the apps this returns true for (default: all) */
+  include?: (app: AppListing) => boolean;
 }
 
 export class AppScanner {
   private systemAppsPath: string;
   private userAppsPath: string | null;
+  private include: (app: AppListing) => boolean;
 
   constructor(
     projectRoot: string = process.cwd(),
@@ -47,6 +57,7 @@ export class AppScanner {
       options.userAppsPath === undefined
         ? path.join(projectRoot, "data", "default-user", "apps")
         : options.userAppsPath;
+    this.include = options.include ?? (() => true);
   }
 
   /**
@@ -55,26 +66,55 @@ export class AppScanner {
   async scanAll(): Promise<ScannedApp[]> {
     const apps: ScannedApp[] = [];
 
-    // Scan system apps
-    if (fs.existsSync(this.systemAppsPath)) {
-      const systemApps = await this.scanDirectory(this.systemAppsPath);
-      apps.push(...systemApps);
-    }
+    for (const listing of this.listApps()) {
+      if (!this.include(listing)) continue;
 
-    // Scan user apps
-    if (this.userAppsPath && fs.existsSync(this.userAppsPath)) {
-      const userApps = await this.scanDirectory(this.userAppsPath);
-      apps.push(...userApps);
+      try {
+        // Load app module
+        const appInstance = await this.loadApp(listing.path, listing.config);
+        if (!appInstance) continue;
+
+        apps.push({
+          config: listing.config,
+          instance: appInstance,
+          path: listing.path,
+        });
+
+        console.log(
+          `[AppScanner] Loaded: ${listing.config.name} (${listing.config.icon})`
+        );
+      } catch (error) {
+        console.error(`[AppScanner] Failed to load ${listing.path}:`, error);
+      }
     }
 
     return apps;
   }
 
   /**
-   * Scan a directory for app folders with config.json
+   * List apps (system, then user) from their config.json without loading them
    */
-  private async scanDirectory(dirPath: string): Promise<ScannedApp[]> {
-    const apps: ScannedApp[] = [];
+  listApps(): AppListing[] {
+    const listings: AppListing[] = [];
+
+    // System apps
+    if (fs.existsSync(this.systemAppsPath)) {
+      listings.push(...this.readConfigs(this.systemAppsPath));
+    }
+
+    // User apps
+    if (this.userAppsPath && fs.existsSync(this.userAppsPath)) {
+      listings.push(...this.readConfigs(this.userAppsPath));
+    }
+
+    return listings;
+  }
+
+  /**
+   * Read the config.json of each app folder in a directory
+   */
+  private readConfigs(dirPath: string): AppListing[] {
+    const listings: AppListing[] = [];
 
     try {
       const entries = fs.readdirSync(dirPath, { withFileTypes: true });
@@ -101,17 +141,7 @@ export class AppScanner {
             continue;
           }
 
-          // Load app module
-          const appInstance = await this.loadApp(appPath, config);
-          if (!appInstance) continue;
-
-          apps.push({
-            config,
-            instance: appInstance,
-            path: appPath,
-          });
-
-          console.log(`[AppScanner] Loaded: ${config.name} (${config.icon})`);
+          listings.push({ id: entry.name, config, path: appPath });
         } catch (error) {
           console.error(`[AppScanner] Failed to load ${appPath}:`, error);
         }
@@ -120,7 +150,7 @@ export class AppScanner {
       console.error(`[AppScanner] Failed to scan ${dirPath}:`, error);
     }
 
-    return apps;
+    return listings;
   }
 
   /**
