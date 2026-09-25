@@ -339,7 +339,8 @@ async function main() {
     const vk = crypto.randomBytes(32).toString("base64url");
     viewerB.send({ type: "vault:key", key: vk });
     await viewerB.waitFor(() => viewerB.messages.some((m) => m.type === "vault:state" && m.state === "unlocked"));
-    assert(clockApp.secrets.set("token", "t0p-secret") && clockApp.secrets.get("token") === "t0p-secret", "vault:key unlocks it and secrets work");
+    assert(clockApp.secrets.get("token") === "again", "vault:key unlocks it, completing the save that asked for setup");
+    assert(clockApp.secrets.set("token", "t0p-secret") && clockApp.secrets.get("token") === "t0p-secret", "and secrets work");
     const vaultFile = fs.readFileSync(path.join(dataRoot, "sessions", b, "vault", "vault.json"), "utf-8");
     assert(!vaultFile.includes("t0p-secret") && !vaultFile.includes(vk), "the session's vault file holds neither the secret nor the key");
     viewerB.send({ type: "vault:key", key: crypto.randomBytes(32).toString("base64url") });

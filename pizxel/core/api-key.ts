@@ -21,7 +21,8 @@ interface KeyStorage {
   delete(key: string): void;
 }
 
-export type SaveResult = "saved" | "unlock-needed";
+/** "pending": saved as soon as the vault unlocks (the viewer is asked to) */
+export type SaveResult = "saved" | "pending";
 
 export class ApiKey {
   private migrationHooked = false;
@@ -77,7 +78,8 @@ export class ApiKey {
       secrets.delete(this.name);
       return "saved";
     }
-    // Locked or no vault yet: the viewer is asked to unlock or set it up
-    return secrets.set(this.name, value) ? "saved" : "unlock-needed";
+    // Locked or no vault yet: it's saved on unlock (the viewer is asked to
+    // unlock or set it up)
+    return secrets.set(this.name, value) ? "saved" : "pending";
   }
 }

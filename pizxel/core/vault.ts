@@ -42,6 +42,12 @@ export class Vault {
   private file: string;
   private key: Buffer | null = null;
   private unlockListeners: Set<() => void> = new Set();
+  /**
+   * Secrets saved while locked (or before the vault existed), completed when
+   * it unlocks. Memory only; dropped if the vault locks or is wiped first.
+   */
+  private pending: Map<string, { app: string; name: string; value: string }> =
+    new Map();
 
   /**
    * Called when an app needs the vault while it's locked ("need") or
@@ -81,6 +87,17 @@ export class Vault {
     }
 
     this.key = Buffer.from(key); // Our own copy
+
+    // Complete saves that were waiting for the vault
+    if (this.pending.size > 0) {
+      const current = this.read()!;
+      for (const { app, name, value } of this.pending.values()) {
+        (current.records[app] ??= {})[name] = Vault.seal(this.key, app, name, value);
+      }
+      this.pending.clear();
+      this.write(current);
+    }
+
     this.onStateChange?.("unlocked");
     for (const listener of this.unlockListeners) {
       try {
@@ -94,6 +111,7 @@ export class Vault {
 
   /** Forget VK (session suspended, last viewer gone) */
   lock(): void {
+    this.pending.clear();
     if (!this.key) return;
     this.key.fill(0);
     this.key = null;
@@ -102,6 +120,7 @@ export class Vault {
 
   /** Delete the vault and every secret in it (e.g. after a vault reset) */
   wipe(): void {
+    this.pending.clear();
     if (this.key) {
       this.key.fill(0);
       this.key = null;
@@ -126,10 +145,15 @@ export class Vault {
     return Vault.open(this.key, app, name, sealed);
   }
 
-  /** Store a secret; returns false if the vault isn't unlocked */
+  /**
+   * Store a secret. Returns false if the vault isn't unlocked: the save then
+   * waits (in memory) and completes when it unlocks, and the viewer is asked
+   * to unlock or set up the vault.
+   */
   set(app: string, name: string, value: string): boolean {
     if (!name) throw new Error("Secret names can't be empty");
     if (!this.key) {
+      this.pending.set(`${app}\0${name}`, { app, name, value });
       this.onRequest?.(this.state() === "none" ? "setup" : "need", app, name);
       return false;
     }
@@ -141,6 +165,7 @@ export class Vault {
 
   /** Delete a secret (works while locked: only a name is needed) */
   delete(app: string, name: string): void {
+    this.pending.delete(`${app}\0${name}`);
     const file = this.read();
     if (!file?.records[app]?.[name]) return;
     delete file.records[app][name];
@@ -216,7 +241,10 @@ export class Vault {
 export interface AppSecrets {
   /** The secret, or null if unset or the vault is locked */
   get(name: string): string | null;
-  /** Store it; false if the vault isn't unlocked (the viewer is asked to) */
+  /**
+   * Store it. False if the vault isn't unlocked yet: the save completes when
+   * it unlocks (the viewer is asked to unlock or set it up)
+   */
   set(name: string, value: string): boolean;
   delete(name: string): void;
   isUnlocked(): boolean;

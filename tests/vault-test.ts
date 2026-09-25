@@ -33,6 +33,7 @@ function main() {
   assert(!vault.set("news", "apiKey", secret), "saving before setup fails");
   assert(requests.includes("setup:news:apiKey"), "and asks the viewer to set up the vault");
   assert(vault.unlock(key), "the first key creates the vault");
+  assert(vault.get("news", "apiKey") === secret, "and completes the save that was waiting for it");
   assert(vault.state() === "unlocked", "which is then unlocked");
   assert(vault.set("news", "apiKey", secret), "a secret can be saved");
   assert(vault.get("news", "apiKey") === secret, "and read back");
@@ -47,10 +48,13 @@ function main() {
   requests.length = 0;
   assert(vault.state() === "locked" && vault.get("news", "apiKey") === null, "locked, secrets can't be read");
   assert(requests.includes("need:news:apiKey"), "and the viewer is asked to unlock");
+  assert(!vault.set("news", "later", "saved-while-locked"), "a save while locked waits");
   assert(!vault.unlock(crypto.randomBytes(32)), "a wrong key is refused");
   assert(vault.state() === "locked", "and not kept");
   const reopened = new Vault(path.join(dir, "vault"));
   assert(reopened.unlock(key) && reopened.get("news", "apiKey") === secret, "the right key opens it again, e.g. after a restart");
+  assert(vault.unlock(key) && vault.get("news", "later") === "saved-while-locked", "and completes when the vault unlocks");
+  vault.delete("news", "later");
 
   console.log("Scoping");
   const file = JSON.parse(fs.readFileSync(path.join(dir, "vault", "vault.json"), "utf-8"));
