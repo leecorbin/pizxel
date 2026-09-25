@@ -27,10 +27,12 @@ export class AppFramework {
 
   private lastError: { appName: string; message: string } | null = null;
   private registeredApps: Map<string, App> = new Map();
+  private appsById: Map<string, App> = new Map(); // Scanned apps, opened or not
   private lastBackgroundTick: number = 0;
   private backgroundTickInterval: number = 1000; // 1 second
 
   private appBeforeStandby: App | null = null; // Save app to return to
+  private standbyShowing: boolean = false; // A standby app was switched to
 
   constructor(deviceManager: DeviceManager) {
     this.deviceManager = deviceManager;
@@ -63,6 +65,38 @@ export class AppFramework {
    */
   setLauncher(launcher: App): void {
     this.launcherApp = launcher;
+  }
+
+  /**
+   * Make an app findable by id (its directory name, e.g. "standby") without
+   * activating it. Used for standby and other lookups of never-opened apps.
+   */
+  registerAppId(id: string, app: App): void {
+    this.appsById.set(id, app);
+  }
+
+  /**
+   * Find an app by id or name: exact match first, then case-insensitive
+   */
+  findApp(idOrName: string): App | null {
+    const exact =
+      this.appsById.get(idOrName) ?? this.registeredApps.get(idOrName);
+    if (exact) {
+      return exact;
+    }
+
+    const wanted = idOrName.toLowerCase();
+    for (const [id, app] of this.appsById) {
+      if (id.toLowerCase() === wanted || app.name.toLowerCase() === wanted) {
+        return app;
+      }
+    }
+    for (const app of this.registeredApps.values()) {
+      if (app.name.toLowerCase() === wanted) {
+        return app;
+      }
+    }
+    return null;
   }
 
   /**
@@ -111,6 +145,11 @@ export class AppFramework {
     }
     if (this.registeredApps.get(app.name) === app) {
       this.registeredApps.delete(app.name);
+    }
+    for (const [id, known] of this.appsById) {
+      if (known === app) {
+        this.appsById.delete(id);
+      }
     }
   }
 
@@ -263,7 +302,13 @@ export class AppFramework {
     }
 
     // Notify standby manager of input (resets idle timer / exits standby)
+    const wakingFromStandby = this.standbyShowing;
     this.standbyManager.onInputEvent();
+
+    // The key that wakes from standby only wakes; the restored app never sees it
+    if (wakingFromStandby) {
+      return;
+    }
 
     try {
       // Check if notification is showing and Enter is pressed
@@ -306,15 +351,16 @@ export class AppFramework {
   private async activateStandby(appId: string): Promise<void> {
     console.log(`[AppFramework] Activating standby: ${appId}`);
 
-    // Save current app to return to later
-    this.appBeforeStandby = this.activeApp;
-
-    // Find standby app
-    const standbyApp = this.registeredApps.get(appId);
+    // Find standby app (by id or name, opened or not)
+    const standbyApp = this.findApp(appId);
     if (!standbyApp) {
       console.error(`[AppFramework] Standby app "${appId}" not found`);
       return;
     }
+
+    // Save current app to return to later
+    this.appBeforeStandby = this.activeApp;
+    this.standbyShowing = true;
 
     // Switch to standby app
     await this.switchToApp(standbyApp);
@@ -329,6 +375,12 @@ export class AppFramework {
    * Deactivate standby mode (return to previous app)
    */
   private async deactivateStandby(): Promise<void> {
+    // Nothing to undo if no standby app was shown (e.g. it wasn't found)
+    if (!this.standbyShowing) {
+      return;
+    }
+    this.standbyShowing = false;
+
     console.log("[AppFramework] Deactivating standby");
 
     // Call standby-specific deactivation if current app supports it

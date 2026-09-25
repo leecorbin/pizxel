@@ -299,21 +299,25 @@ export class StandbyManager {
   // --- Integration points (to be implemented by AppFramework) ---
 
   /**
-   * Notify that standby should activate
-   * This will be called by AppFramework integration
+   * Notify that standby should activate (AppFramework sets the callback)
    */
   private notifyStandbyActivation(appId: string): void {
-    // Will be implemented via callback or event emitter
-    console.log(`[StandbyManager] Would activate app: ${appId}`);
+    if (this.onStandbyActivate) {
+      this.onStandbyActivate(appId);
+    } else {
+      console.log(`[StandbyManager] Would activate app: ${appId}`);
+    }
   }
 
   /**
-   * Notify that standby should deactivate
-   * This will be called by AppFramework integration
+   * Notify that standby should deactivate (AppFramework sets the callback)
    */
   private notifyStandbyDeactivation(): void {
-    // Will be implemented via callback or event emitter
-    console.log("[StandbyManager] Would deactivate standby");
+    if (this.onStandbyDeactivate) {
+      this.onStandbyDeactivate();
+    } else {
+      console.log("[StandbyManager] Would deactivate standby");
+    }
   }
 
   /**
