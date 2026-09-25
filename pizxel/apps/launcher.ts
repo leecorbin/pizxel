@@ -89,6 +89,37 @@ export class LauncherApp implements App {
     }
   }
 
+  /**
+   * Remove an app's icon (and the Games folder once it has no games)
+   */
+  unregisterApp(app: App): void {
+    const selected = this.apps[this.selectedIndex];
+    this.apps = this.apps.filter((a) => a.app !== app);
+    const hadGame = this.gameApps.some((a) => a.app === app);
+    this.gameApps = this.gameApps.filter((a) => a.app !== app);
+
+    if (hadGame) {
+      if (this.gameApps.length > 0) {
+        this.gamesPopup.setGames(
+          this.gameApps.map((g) => ({
+            name: g.name,
+            emoji: g.emoji,
+            color: g.color,
+            app: g.app!,
+          }))
+        );
+      } else {
+        this.apps = this.apps.filter((a) => !a.isFolder);
+      }
+    }
+
+    // Keep the same icon highlighted if it's still there
+    const index = selected ? this.apps.indexOf(selected) : -1;
+    this.selectedIndex =
+      index >= 0 ? index : Math.min(this.selectedIndex, Math.max(0, this.apps.length - 1));
+    this.dirty = true;
+  }
+
   async registerApp(
     name: string,
     emoji: string,

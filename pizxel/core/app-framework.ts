@@ -100,6 +100,21 @@ export class AppFramework {
   }
 
   /**
+   * Forget an app (e.g. uninstalled), returning to the launcher if it's open
+   */
+  async unregisterApp(app: App): Promise<void> {
+    if (this.activeApp === app && this.launcherApp) {
+      await this.switchToApp(this.launcherApp);
+    }
+    if (this.appBeforeStandby === app) {
+      this.appBeforeStandby = null;
+    }
+    if (this.registeredApps.get(app.name) === app) {
+      this.registeredApps.delete(app.name);
+    }
+  }
+
+  /**
    * Get the active app
    */
   getActiveApp(): App | null {

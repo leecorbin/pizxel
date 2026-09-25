@@ -31,6 +31,7 @@ export interface AppListing {
 }
 
 export interface ScannedApp {
+  id: string; // App directory name (e.g. "clock")
   config: AppConfig;
   instance: App;
   path: string;
@@ -71,27 +72,35 @@ export class AppScanner {
 
     for (const listing of this.listApps()) {
       if (!this.include(listing)) continue;
-
-      try {
-        // Load app module
-        const appInstance = await this.loadApp(listing.path, listing.config);
-        if (!appInstance) continue;
-
-        apps.push({
-          config: listing.config,
-          instance: appInstance,
-          path: listing.path,
-        });
-
-        console.log(
-          `[AppScanner] Loaded: ${listing.config.name} (${listing.config.icon})`
-        );
-      } catch (error) {
-        console.error(`[AppScanner] Failed to load ${listing.path}:`, error);
-      }
+      const app = await this.load(listing);
+      if (app) apps.push(app);
     }
 
     return apps;
+  }
+
+  /**
+   * Load and instantiate one listed app
+   */
+  async load(listing: AppListing): Promise<ScannedApp | null> {
+    try {
+      // Load app module
+      const appInstance = await this.loadApp(listing.path, listing.config);
+      if (!appInstance) return null;
+
+      console.log(
+        `[AppScanner] Loaded: ${listing.config.name} (${listing.config.icon})`
+      );
+      return {
+        id: listing.id,
+        config: listing.config,
+        instance: appInstance,
+        path: listing.path,
+      };
+    } catch (error) {
+      console.error(`[AppScanner] Failed to load ${listing.path}:`, error);
+      return null;
+    }
   }
 
   /**

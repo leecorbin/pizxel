@@ -16,7 +16,7 @@ import { Audio } from "../audio/audio";
 import { CanvasAudioOutputDriver } from "../drivers/audio/canvas-audio-output-driver";
 import { CanvasAudioInputProxy } from "../drivers/audio/canvas-audio-input-proxy";
 import type { AudioBridge } from "../drivers/audio/audio-bridge";
-import type { AppListing } from "../core/app-scanner";
+import { AppScanner, AppListing } from "../core/app-scanner";
 import { SessionDisplayDriver, SessionInputDriver } from "./session-drivers";
 
 export type SessionState = "live" | "suspended";
@@ -103,15 +103,40 @@ export class Session implements AudioBridge {
   }
 
   /**
-   * Optional apps enabled for this session (applied on the next resume)
+   * Optional apps enabled for this session
    */
   getEnabledApps(): string[] {
     const enabledApps = this.readConfig().enabledApps;
     return Array.isArray(enabledApps) ? enabledApps : [];
   }
 
-  setEnabledApps(enabledApps: string[]): void {
+  /**
+   * Set the optional apps. A live session gains or loses them straight away
+   * (a removed app that's open closes to the launcher); a suspended one gets
+   * them when it resumes.
+   */
+  async setEnabledApps(enabledApps: string[]): Promise<void> {
     this.writeConfig({ ...this.readConfig(), enabledApps });
+
+    while (this.transition) await this.transition;
+    const instance = this.instance;
+    if (!instance) return;
+
+    const enabled = new Set(enabledApps);
+    const loaded = new Set(instance.loadedAppIds());
+    const optionalApps = new AppScanner(undefined, {
+      userAppsPath: this.options.extraAppsDir,
+    })
+      .listApps()
+      .filter((app) => app.config.tier === "optional");
+
+    for (const app of optionalApps) {
+      if (enabled.has(app.id) && !loaded.has(app.id)) {
+        await instance.addApp(app);
+      } else if (!enabled.has(app.id) && loaded.has(app.id)) {
+        await instance.removeApp(app.id);
+      }
+    }
   }
 
   // ===== Lifecycle =====

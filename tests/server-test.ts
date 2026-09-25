@@ -244,6 +244,26 @@ async function main() {
     assert(viewerA.frames.length > aFrames, "a key to A redraws A");
     assert(viewerB.frames.length === bFrames, "and B gets no new frame");
 
+    console.log("Live app changes");
+    assert((await api("PUT", `/sessions/${b}/apps`, { enabled: [] })).status === 200, "PUT /apps on a live session");
+    assert(!appNames(b).includes("Demo"), "a disabled app leaves the live launcher at once");
+    await api("PUT", `/sessions/${b}/apps`, { enabled: ["demo", "keyboard-demo"] });
+    assert(
+      appNames(b).includes("Demo") && appNames(b).includes("Keyboard Demo"),
+      "enabled apps join the live launcher at once"
+    );
+    select(manager, b, "Demo");
+    viewerB.send({ type: "key", key: "Enter" });
+    await wait(300);
+    assert(manager.get(b)?.activeAppName === "Demo", "the added app opens");
+    const framesBeforeRemoval = viewerB.frames.length;
+    await api("PUT", `/sessions/${b}/apps`, { enabled: ["keyboard-demo"] });
+    await viewerB.waitFor(() => viewerB.frames.length > framesBeforeRemoval);
+    assert(manager.get(b)?.activeAppName === "Launcher", "removing the open app returns to the launcher");
+    assert(!appNames(b).includes("Demo") && appNames(b).includes("Keyboard Demo"), "leaving the other app installed");
+    await api("PUT", `/sessions/${b}/apps`, { enabled: ["demo"] });
+    await wait(300);
+
     console.log("Limits");
     const c = (await api("POST", "/sessions")).json.id;
     const viewerC = new Viewer(c);

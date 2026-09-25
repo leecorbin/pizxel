@@ -103,8 +103,11 @@ and always on.
 
 ### `PUT /sessions/:id/apps`
 
-Sets which optional apps are on. **Changes apply on the next resume**, not
-to a session that's already live.
+Sets which optional apps are on. On a **live** session the change applies
+straight away: added apps appear in the launcher, and removed ones disappear
+(a removed app that's open closes, returning the visitor to the launcher).
+The response is sent once that's done. A suspended session gets the new set
+when it resumes.
 
 ```
 PUT {"enabled": ["some-optional-app"]}

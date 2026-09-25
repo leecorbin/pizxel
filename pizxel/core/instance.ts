@@ -8,7 +8,12 @@
 
 import { DeviceManager } from "./device-manager";
 import { AppFramework } from "./app-framework";
-import { AppScanner, AppScannerOptions } from "./app-scanner";
+import {
+  AppListing,
+  AppScanner,
+  AppScannerOptions,
+  ScannedApp,
+} from "./app-scanner";
 import { LauncherApp } from "../apps/launcher";
 import { AppStorage } from "../storage";
 import {
@@ -45,6 +50,12 @@ export interface PizxelInstance {
   stop(): Promise<void>;
   /** Run code (e.g. an input callback) inside this instance's context */
   run<T>(fn: () => T): T;
+  /** Ids (directory names) of the apps loaded into the launcher */
+  loadedAppIds(): string[];
+  /** Load an app and add it to the launcher (no-op if already loaded) */
+  addApp(listing: AppListing): Promise<void>;
+  /** Remove an app from the launcher, closing it if it's open */
+  removeApp(id: string): Promise<void>;
 }
 
 export async function createInstance(
@@ -57,6 +68,22 @@ export async function createInstance(
   context.audioInput = options.audioInput ?? null;
 
   const { deviceManager } = options;
+  const scanner = new AppScanner(undefined, options.scanner);
+  const loadedApps = new Map<string, ScannedApp>();
+  let launcher: LauncherApp;
+
+  const registerWithLauncher = async (app: ScannedApp) => {
+    const color = app.config.color || [255, 255, 255];
+    const category = app.config.category; // Get category from config
+    await launcher.registerApp(
+      app.config.name,
+      app.config.icon,
+      color as [number, number, number],
+      app.instance,
+      category
+    );
+    loadedApps.set(app.id, app);
+  };
 
   const appFramework = await runInContext(context, async () => {
     const framework = new AppFramework(deviceManager);
@@ -78,24 +105,15 @@ export async function createInstance(
     }
 
     // Create launcher
-    const launcher = new LauncherApp(framework);
+    launcher = new LauncherApp(framework);
 
     // Scan and load apps
     console.log("Scanning for apps...");
-    const scanner = new AppScanner(undefined, options.scanner);
     const scannedApps = await scanner.scanAll();
 
     // Register scanned apps with launcher
     for (const app of scannedApps) {
-      const color = app.config.color || [255, 255, 255];
-      const category = app.config.category; // Get category from config
-      await launcher.registerApp(
-        app.config.name,
-        app.config.icon,
-        color as [number, number, number],
-        app.instance,
-        category
-      );
+      await registerWithLauncher(app);
     }
 
     console.log(`Loaded ${scannedApps.length} app(s)`);
@@ -128,5 +146,20 @@ export async function createInstance(
       });
     },
     run: (fn) => runInContext(context, fn),
+    loadedAppIds: () => [...loadedApps.keys()],
+    addApp: (listing) =>
+      runInContext(context, async () => {
+        if (loadedApps.has(listing.id)) return;
+        const app = await scanner.load(listing);
+        if (app) await registerWithLauncher(app);
+      }),
+    removeApp: (id) =>
+      runInContext(context, async () => {
+        const app = loadedApps.get(id);
+        if (!app) return;
+        loadedApps.delete(id);
+        await appFramework.unregisterApp(app.instance);
+        launcher.unregisterApp(app.instance);
+      }),
   };
 }

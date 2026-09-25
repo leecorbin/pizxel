@@ -105,8 +105,13 @@ export function createSessionServer(
       return;
     }
     const unique = [...new Set(enabled as string[])];
-    session.setEnabledApps(unique);
-    res.json({ enabled: unique });
+    session
+      .setEnabledApps(unique)
+      .then(() => res.json({ enabled: unique }))
+      .catch((error) => {
+        console.error("[SessionServer] Changing apps failed:", error);
+        res.status(500).json({ error: "changing apps failed" });
+      });
   });
 
   app.use((_req, res) => {
