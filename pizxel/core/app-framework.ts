@@ -34,6 +34,12 @@ export class AppFramework {
 
   private standbyEnabled: boolean = true;
 
+  /**
+   * Called when Escape is pressed at the launcher and nothing handles it
+   * (e.g. so a web viewer can leave full screen)
+   */
+  onUnhandledEscape: (() => void) | null = null;
+
   // Frame timing (performance.now(), in ms)
   private nextFrameTime: number = 0;
   private lastRenderTime: number = 0;
@@ -411,8 +417,10 @@ export class AppFramework {
           if (this.activeApp !== this.launcherApp && this.launcherApp) {
             console.log("\nReturning to launcher...");
             this.switchToApp(this.launcherApp);
+          } else if (!event.repeat) {
+            // At the launcher, ESC does nothing here (Ctrl+C exits locally)
+            this.onUnhandledEscape?.();
           }
-          // If in launcher, ESC does nothing - user must use Ctrl+C to exit
         }
       }
     } catch (error) {

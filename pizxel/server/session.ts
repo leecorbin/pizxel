@@ -213,6 +213,10 @@ export class Session implements AudioBridge {
       // No screensaver for web visitors (it would also keep sending frames)
       standby: false,
     });
+    // Escape at the launcher: let the viewer act on it (e.g. leave full screen)
+    instance.appFramework.onUnhandledEscape = () =>
+      this.broadcastJSON({ type: "escape:unhandled" });
+
     await instance.start();
 
     this.display = display;

@@ -152,6 +152,7 @@ skipped for it until it catches up.
 | `{"type":"audio:sweep","startFreq":400,"endFreq":800,"duration":100,"volume":0.15}` | Play a frequency sweep |
 | `{"type":"audio:request-start"}` | An app wants the microphone (see below) |
 | `{"type":"audio:request-stop"}` | The app is done with the microphone |
+| `{"type":"escape:unhandled"}` | Escape was pressed at the launcher and nothing used it (sent for a non-repeat keydown only), e.g. so the viewer can leave full screen |
 
 Viewers should ignore message types they don't know.
 
@@ -159,7 +160,8 @@ Viewers should ignore message types they don't know.
 
 | Message | Meaning |
 |---|---|
-| `{"type":"key","key":"ArrowUp","code":"ArrowUp","shift":false,"ctrl":false,"alt":false}` | A keydown |
+| `{"type":"key","key":"ArrowUp","repeat":false,"code":"ArrowUp","shift":false,"ctrl":false,"alt":false}` | A keydown |
+| `{"type":"keyup","key":"ArrowUp"}` | A key released; `"key":"*"` releases every key |
 | `{"type":"text","text":"pasted text"}` | Paste |
 
 - **`key`** is `KeyboardEvent.key`, sent for every keydown, including
@@ -170,9 +172,16 @@ Viewers should ignore message types they don't know.
     text inputs receive typing.
 
   Other keys (`Shift`, `F1`, ...) are ignored, as are `key` values over 32
-  characters. `code`, `shift`, `ctrl` and `alt` are accepted and currently
+  characters. `repeat` is `KeyboardEvent.repeat` (optional; missing means
+  false). `code`, `shift`, `ctrl` and `alt` are accepted and currently
   ignored.
-- **`text`** is typed in as one key per character, up to 256 characters.
+- **`keyup`** gives apps held-key state (smooth movement in games). Send one
+  for every keyup, and `"*"` when the page loses focus or is hidden, so no
+  key stays held. The engine also releases a viewer's held keys itself when
+  its WebSocket closes or drops. Viewers that never send `keyup` still work:
+  apps then only see keydowns, as before.
+- **`text`** is typed in as one key press and release per character, up to
+  256 characters.
 - Binary messages from the client, malformed JSON and unknown types are
   ignored. Messages over 64 KB close the connection (code `1009`).
 

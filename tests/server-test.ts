@@ -264,6 +264,48 @@ async function main() {
     await api("PUT", `/sessions/${b}/apps`, { enabled: ["demo"] });
     await wait(300);
 
+    console.log("Keys");
+    const keyDown = (id: string, key: string): boolean =>
+      (manager.get(id) as any).instance.appFramework.isKeyDown(key);
+    viewerB.send({ type: "key", key: "ArrowLeft", repeat: false });
+    await wait(50);
+    assert(keyDown(b, "ArrowLeft"), "a key is held after keydown");
+    viewerB.send({ type: "keyup", key: "ArrowLeft" });
+    await wait(50);
+    assert(!keyDown(b, "ArrowLeft"), "and released on keyup");
+    viewerB.send({ type: "key", key: "ArrowLeft" });
+    viewerB.send({ type: "key", key: "x" });
+    viewerB.send({ type: "keyup", key: "*" });
+    await wait(50);
+    assert(!keyDown(b, "ArrowLeft") && !keyDown(b, "x"), '"*" releases every key');
+    viewerB.send({ type: "text", text: "hi" });
+    await wait(50);
+    assert(!keyDown(b, "h") && !keyDown(b, "i"), "pasted text doesn't leave keys held");
+    const extraViewer = new Viewer(b);
+    await extraViewer.open();
+    await extraViewer.waitFor(() => extraViewer.frames.length > 0);
+    extraViewer.send({ type: "key", key: "ArrowRight" });
+    await wait(50);
+    assert(keyDown(b, "ArrowRight"), "a second viewer holds a key");
+    extraViewer.close();
+    await extraViewer.waitForClose();
+    await wait(50);
+    assert(!keyDown(b, "ArrowRight"), "which is released when that viewer disconnects");
+
+    const escapesBefore = viewerB.messages.filter((m) => m.type === "escape:unhandled").length;
+    viewerB.send({ type: "key", key: "Escape", repeat: true });
+    await wait(50);
+    assert(
+      viewerB.messages.filter((m) => m.type === "escape:unhandled").length === escapesBefore,
+      "a repeated Escape at the launcher sends nothing"
+    );
+    viewerB.send({ type: "key", key: "Escape", repeat: false });
+    await viewerB.waitFor(
+      () => viewerB.messages.filter((m) => m.type === "escape:unhandled").length > escapesBefore
+    );
+    assert(true, "an unhandled Escape at the launcher sends escape:unhandled");
+    viewerB.send({ type: "keyup", key: "*" });
+
     console.log("Limits");
     const c = (await api("POST", "/sessions")).json.id;
     const viewerC = new Viewer(c);
