@@ -78,8 +78,11 @@ Idempotent: deleting an unknown session also returns `204`.
 
 ### `GET /catalog`
 
-The apps visitors can have. `tier` is `core` (always on) or `optional`
-(switched on per session).
+The apps visitors can have. `tier` is `core` (preinstalled, always on) or
+`optional` (switched on per session from the app shelf). Apps with the
+`private` tier are never listed or loaded, except on a private instance
+(`INCLUDE_PRIVATE_APPS=true`), where they're listed with `"tier": "private"`
+and always on.
 
 ```
 200 [
@@ -186,13 +189,14 @@ implement this later; until then, apps just see no microphone.
    {"type":"audio:analysis",
     "spectrum": {"bands":[/* 32 numbers, low to high, log-spaced */],
                  "bassEnergy":0.4, "midEnergy":0.2, "trebleEnergy":0.1},
-    "levels": {"rms":0.1, "peak":0.3, "db":-20},
+    "levels": {"rms":0.1, "peak":0.3, "db":-20, "rawRms":0.005},
     "waveform": {"samples":[/* 128 numbers, -1 to 1 */]},
     "classification": {"type":"music", "confidence":0.8, "hasBeat":true, "tempo":120}}
    ```
 
    and, on a beat, `{"type":"audio:beat","tempo":120,"confidence":0.8}`.
-   Values are 0–1 unless noted; `db` is −60 to 0; `classification.type` is
+   Values are 0–1 unless noted; `db` is −60 to 0; `rawRms` is the
+   unscaled level (for debugging); `classification.type` is
    `silence`, `music`, `speech`, `noise` or `unknown`; `tempo` is BPM and may
    be absent.
 4. On `audio:request-stop`, or when the visitor leaves, the viewer stops
@@ -218,7 +222,12 @@ The local canvas viewer is a working reference for the analysis (functions
 - Visitors can only send keys, text and microphone summaries. They can't
   upload or run code, choose files, or pick URLs.
 - User apps (`data/*/apps`) are never loaded. The only extra apps come from
-  `EXTRA_APPS_DIR`, which the operator sets (e.g. for a private instance).
+  `EXTRA_APPS_DIR`, which the operator sets. `private` tier apps load only
+  when `INCLUDE_PRIVATE_APPS=true`.
+- Lee's private apps (in development, e.g. ones that need the network or
+  the microphone) aren't in this repo or the public image. They live in his
+  private repo and are mounted into his private instance only, with
+  `EXTRA_APPS_DIR` and `INCLUDE_PRIVATE_APPS=true`.
 - PiZXel makes no outbound network requests in server mode (the emoji CDN
   fallback and emoji search are off; see `pizxel/core/network.ts`).
 - The ZX Spectrum emulator (jsspeccy3) isn't in the image.
@@ -233,5 +242,6 @@ The local canvas viewer is a working reference for the analysis (functions
 | `MAX_LIVE_SESSIONS` | `10` | Sessions running at once |
 | `FPS_CAP` | `20` | Maximum frames per second per session |
 | `IDLE_SUSPEND_SECONDS` | `60` | Delay before suspending an unwatched session |
-| `EXTRA_APPS_DIR` | (none) | Extra apps directory, e.g. private apps |
+| `EXTRA_APPS_DIR` | (none) | Extra apps directory |
+| `INCLUDE_PRIVATE_APPS` | `false` | Load `private` tier apps (Lee's private instance only) |
 | `PIZXEL_DEBUG` | (off) | Per-frame and per-key debug logging |

@@ -1,0 +1,14 @@
+{
+  "name": "Timer",
+  "version": "1.0.0",
+  "description": "Countdown timer with background notifications",
+  "author": "PiZXel Team",
+  "icon": "⏲️",
+  "main": "main.ts",
+  "color": [
+    255,
+    165,
+    0
+  ],
+  "tier": "core"
+}

@@ -1,0 +1,15 @@
+{
+  "name": "Tetris",
+  "version": "1.0.0",
+  "description": "Classic falling blocks puzzle game",
+  "author": "PiZXel Team",
+  "icon": "🟦",
+  "main": "main.ts",
+  "color": [
+    100,
+    150,
+    255
+  ],
+  "category": "game",
+  "tier": "core"
+}

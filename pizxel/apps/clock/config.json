@@ -5,5 +5,10 @@
   "author": "PiZXel Team",
   "icon": "⏰",
   "main": "clock.ts",
-  "color": [255, 255, 0]
+  "color": [
+    255,
+    255,
+    0
+  ],
+  "tier": "core"
 }

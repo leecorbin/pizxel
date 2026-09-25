@@ -1,0 +1,15 @@
+{
+  "name": "Snake",
+  "version": "1.0.0",
+  "description": "Classic snake game - eat food and grow!",
+  "author": "PiZXel Team",
+  "icon": "🐍",
+  "main": "snake.ts",
+  "color": [
+    0,
+    255,
+    0
+  ],
+  "category": "game",
+  "tier": "core"
+}

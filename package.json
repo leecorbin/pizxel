@@ -10,7 +10,7 @@
     "start:term": "tsx pizxel/start.ts --term",
     "start:server": "tsx pizxel/start-server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/instance-test.ts && tsx tests/server-test.ts",
+    "test": "tsx tests/instance-test.ts && tsx tests/server-test.ts && tsx tests/apps-test.ts",
     "clean": "rm -rf dist"
   },
   "keywords": [

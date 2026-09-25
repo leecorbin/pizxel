@@ -1,0 +1,15 @@
+{
+  "name": "Frogger",
+  "version": "1.0.0",
+  "description": "Classic road-crossing challenge",
+  "author": "PiZXel Team",
+  "icon": "🐸",
+  "main": "main.ts",
+  "color": [
+    50,
+    255,
+    50
+  ],
+  "category": "game",
+  "tier": "core"
+}

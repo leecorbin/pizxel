@@ -15,6 +15,7 @@
  *   FPS_CAP               Frame rate per session [20]
  *   IDLE_SUSPEND_SECONDS  Suspend a session this long after its last viewer leaves [60]
  *   EXTRA_APPS_DIR        Extra apps directory, e.g. private apps [none]
+ *   INCLUDE_PRIVATE_APPS  Load "private" tier apps: true for a private instance [false]
  */
 
 import * as path from "path";
@@ -51,6 +52,9 @@ async function main() {
     extraAppsDir: process.env.EXTRA_APPS_DIR
       ? path.resolve(process.env.EXTRA_APPS_DIR)
       : null,
+    includePrivateApps: /^(1|true|yes)$/i.test(
+      process.env.INCLUDE_PRIVATE_APPS ?? ""
+    ),
   });
 
   const server = createSessionServer(manager, token);

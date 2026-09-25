@@ -1,0 +1,11 @@
+{
+  "name": "Demo",
+  "main": "main.ts",
+  "icon": "🌈",
+  "color": [
+    100,
+    180,
+    255
+  ],
+  "tier": "optional"
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Keyboard Demo",
+  "description": "Test the on-screen keyboard",
+  "main": "main.ts",
+  "icon": "⌨️",
+  "author": "PiZXel",
+  "version": "1.0.0",
+  "category": "utility",
+  "tier": "optional"
+}

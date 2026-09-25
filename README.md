@@ -60,8 +60,14 @@ Configuration (environment variables):
 | `MAX_LIVE_SESSIONS` | `10` | Sessions running at once |
 | `FPS_CAP` | `20` | Maximum frames per second per session |
 | `IDLE_SUSPEND_SECONDS` | `60` | Delay before suspending a session with no viewers |
-| `EXTRA_APPS_DIR` | (none) | Extra apps directory, e.g. private apps |
+| `EXTRA_APPS_DIR` | (none) | Extra apps directory |
+| `INCLUDE_PRIVATE_APPS` | `false` | Load `private` tier apps (for a private instance) |
 | `PIZXEL_DEBUG` | (off) | Per-frame and per-key debug logging (any mode) |
+
+Each app's `config.json` can set `"tier"`: `"core"` (preinstalled, the
+default), `"optional"` (added per visitor from the pizxel.uk app shelf) or
+`"private"` (only on a private instance). Local modes ignore tiers and load
+every app.
 
 Local modes also read `CANVAS_PORT` (default `3001`) and `CANVAS_PIXEL_SIZE`
 (default `3`).

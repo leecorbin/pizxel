@@ -1030,12 +1030,14 @@ export class CanvasServer {
         for (let j = lowBin; j <= highBin && j < binCount; j++) {
           // Convert from dB to linear (0-1)
           const db = frequencyData[j];
-          const linear = Math.pow(10, db / 20);
-          sum += linear;
+          // Boost the conversion - add 100 to shift range up, then normalize
+          const normalized = (db + 100) / 100; // -100dB to 0dB -> 0 to 1
+          sum += Math.max(0, normalized);
           count++;
         }
 
-        bands[i] = count > 0 ? Math.min(1, sum / count * 5) : 0;
+        // Higher multiplier for more visible bars
+        bands[i] = count > 0 ? Math.min(1, (sum / count) * 1.5) : 0;
       }
 
       // Calculate bass/mid/treble for classification
@@ -1065,10 +1067,13 @@ export class CanvasServer {
       const rms = Math.sqrt(sumSquares / timeDomainData.length);
       const db = rms > 0 ? 20 * Math.log10(rms) : -100;
 
+      // Much higher sensitivity - multiply by 20 instead of 5
+      // Microphones typically have very low raw levels
       return {
-        rms: Math.min(1, rms * 5), // Normalize to 0-1 range
-        peak: Math.min(1, peak),
+        rms: Math.min(1, rms * 20), // Higher sensitivity
+        peak: Math.min(1, peak * 10), // Boost peak too
         db: Math.max(-60, db), // Clamp to reasonable range
+        rawRms: rms, // Include raw value for debugging
       };
     }
 
@@ -1122,32 +1127,45 @@ export class CanvasServer {
         lastBeatTime = now;
       }
 
-      // Classify audio type
+      // Classify audio type - simplified and more responsive
       let type = 'silence';
       let confidence = 0;
 
-      if (levels.db < -50) {
+      // Very simple classification based on current levels
+      // Silence: very low level
+      if (levels.db < -35) {
         type = 'silence';
         confidence = 1;
-      } else if (spectralHistory.length >= 10) {
-        // Calculate spectral variance
-        const bassVariance = calculateVariance(spectralHistory.map(s => s[0]));
-        const midVariance = calculateVariance(spectralHistory.map(s => s[1]));
+      }
+      // If we have audio, classify based on spectral content
+      else {
+        // Calculate spectral variance if we have history
+        let bassVariance = 0;
+        let midVariance = 0;
+        if (spectralHistory.length >= 5) {
+          bassVariance = calculateVariance(spectralHistory.map(s => s[0]));
+          midVariance = calculateVariance(spectralHistory.map(s => s[1]));
+        }
 
-        // Music: high bass variance, rhythmic patterns
-        if (bassVariance > 0.02 && beatHistory.length >= 3) {
+        // Music: any bass presence with some variation, or beat detected
+        if (spectrum.bassEnergy > 0.1 || beatHistory.length >= 1) {
           type = 'music';
-          confidence = Math.min(1, bassVariance * 10);
+          confidence = Math.min(1, spectrum.bassEnergy + 0.3);
         }
-        // Speech: high mid-range, lower bass
-        else if (spectrum.midEnergy > spectrum.bassEnergy * 1.2 && midVariance > 0.01) {
+        // Speech: mid-range dominant
+        else if (spectrum.midEnergy > spectrum.bassEnergy && spectrum.midEnergy > 0.05) {
           type = 'speech';
-          confidence = Math.min(1, midVariance * 20);
+          confidence = Math.min(1, spectrum.midEnergy * 2);
         }
-        // Noise: random distribution
-        else if (levels.rms > 0.1) {
+        // Noise: anything else that's audible
+        else if (levels.rms > 0.02) {
           type = 'noise';
           confidence = 0.5;
+        }
+        // Default to noise if there's any signal
+        else {
+          type = 'noise';
+          confidence = 0.3;
         }
       }
 

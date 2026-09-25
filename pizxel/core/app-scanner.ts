@@ -18,7 +18,10 @@ export interface AppConfig {
   main: string; // Module name or class name (e.g., "clock" or "ClockApp")
   color?: [number, number, number]; // Optional theme color
   category?: string; // Optional category (e.g., "game", "utility", "media")
-  tier?: "core" | "optional"; // Server mode: core apps are on for everyone (default)
+  // Server mode: "core" apps are on for everyone (default), "optional" apps
+  // are switched on per session, "private" apps only run on a private
+  // instance (INCLUDE_PRIVATE_APPS). Local modes load every app.
+  tier?: "core" | "optional" | "private";
 }
 
 export interface AppListing {

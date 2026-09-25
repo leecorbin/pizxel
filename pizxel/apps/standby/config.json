@@ -1,9 +1,14 @@
 {
   "name": "Standby",
   "version": "1.0.0",
-  "description": "Screensaver with animated modes",
-  "author": "PiZXel",
+  "description": "Ambient screensaver with multiple animation modes",
+  "author": "PiZXel Team",
   "icon": "💤",
-  "main": "standby.ts",
-  "color": [100, 100, 150]
+  "main": "main.ts",
+  "color": [
+    100,
+    100,
+    150
+  ],
+  "tier": "core"
 }

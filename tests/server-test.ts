@@ -28,6 +28,14 @@ function assert(condition: any, message: string): void {
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Highlight an app in a live session's launcher (icon order depends on the apps) */
+function select(manager: SessionManager, id: string, appName: string): void {
+  const launcher = (manager.get(id) as any).instance.appFramework.launcherApp;
+  const icon = launcher.apps.find((i: any) => i.name === appName);
+  if (!icon) throw new Error(`No launcher icon for ${appName}`);
+  launcher.selectApp(icon.app);
+}
+
 async function api(
   method: string,
   urlPath: string,
@@ -99,14 +107,42 @@ class Viewer {
   }
 }
 
+/** An extra apps directory holding one "private" tier app */
+function makePrivateAppsDir(root: string): string {
+  const dir = path.join(root, "extra-apps");
+  const app = path.join(dir, "secret");
+  fs.mkdirSync(app, { recursive: true });
+  fs.writeFileSync(
+    path.join(app, "config.json"),
+    JSON.stringify({ name: "Secret", description: "", icon: "⏰", main: "main.ts", tier: "private" })
+  );
+  fs.writeFileSync(
+    path.join(app, "main.ts"),
+    `export class SecretApp {
+  readonly name = "Secret";
+  dirty = true;
+  onActivate() {}
+  onDeactivate() {}
+  onUpdate() {}
+  onEvent() { return false; }
+  render() { this.dirty = false; }
+}
+`
+  );
+  return dir;
+}
+
 async function main() {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pizxel-server-test-"));
+  const extraAppsDir = makePrivateAppsDir(dataRoot);
+  // A public instance that can see a private app, but must not offer it
   const manager = new SessionManager({
     dataRoot,
     maxLiveSessions: 2,
     fps: 20,
     idleSuspendMs: IDLE_SUSPEND_MS,
-    extraAppsDir: null,
+    extraAppsDir,
+    includePrivateApps: false,
   });
   const server = createSessionServer(manager, TOKEN);
   await new Promise<void>((resolve) => server.listen(0, resolve));
@@ -122,6 +158,26 @@ async function main() {
     assert(
       catalog.some((app: any) => app.id === "clock" && app.tier === "core"),
       "catalog lists core apps with their tier"
+    );
+    assert(
+      catalog.some((app: any) => app.id === "demo" && app.tier === "optional"),
+      "and optional apps"
+    );
+    assert(
+      !catalog.some((app: any) => app.tier === "private"),
+      "but no private apps on a public instance"
+    );
+    const privateCatalog = new SessionManager({
+      dataRoot: path.join(dataRoot, "private"),
+      maxLiveSessions: 1,
+      fps: 20,
+      idleSuspendMs: IDLE_SUSPEND_MS,
+      extraAppsDir,
+      includePrivateApps: true,
+    }).catalog();
+    assert(
+      privateCatalog.some((app) => app.id === "secret" && app.tier === "private"),
+      "a private instance lists private apps"
     );
 
     const created = await api("POST", "/sessions");
@@ -141,6 +197,12 @@ async function main() {
       (await api("PUT", `/sessions/${a}/apps`, { enabled: ["clock"] })).status === 400,
       "only optional apps can be enabled (core apps are always on)"
     );
+    assert(
+      (await api("PUT", `/sessions/${a}/apps`, { enabled: ["secret"] })).status === 400,
+      "private apps can't be enabled on a public instance"
+    );
+    const enabled = await api("PUT", `/sessions/${b}/apps`, { enabled: ["demo"] });
+    assert(enabled.status === 200 && enabled.json.enabled[0] === "demo", "an optional app can be enabled");
 
     console.log("WebSocket");
     const viewerA = new Viewer(a);
@@ -163,6 +225,16 @@ async function main() {
     await viewerB.open();
     await viewerB.waitFor(() => viewerB.frames.length > 0);
 
+    console.log("Tiers");
+    const appNames = (id: string): string[] => {
+      const launcher = (manager.get(id) as any).instance.appFramework.launcherApp;
+      return [...launcher.apps, ...launcher.gameApps].map((icon: any) => icon.name);
+    };
+    assert(appNames(a).includes("Snake") && appNames(a).includes("Clock"), "core apps (including games) are preinstalled");
+    assert(appNames(b).includes("Demo"), "an enabled optional app is loaded on resume");
+    assert(!appNames(a).includes("Demo"), "and not in sessions that didn't enable it");
+    assert(!appNames(a).includes("Secret"), "private apps aren't loaded on a public instance");
+
     console.log("Isolation");
     const aFrames = viewerA.frames.length;
     const bFrames = viewerB.frames.length;
@@ -182,8 +254,8 @@ async function main() {
     assert((await new Viewer(a, "wrong").waitForClose()) === 4401, "bad token closes with 4401");
 
     console.log("Suspend and resume");
-    // A: open Standby (first item), change its mode, go back (saves state)
-    viewerA.send({ type: "key", key: "ArrowLeft" });
+    // A: open Standby, change its mode, go back (saves state)
+    select(manager, a, "Standby");
     viewerA.send({ type: "key", key: "Enter" });
     await wait(200);
     viewerA.send({ type: "key", key: " " });
@@ -193,7 +265,7 @@ async function main() {
     await wait(IDLE_SUSPEND_MS + 300);
     assert((await api("GET", `/sessions/${a}/status`)).json.state === "suspended", "an unwatched session suspends when idle");
     const saved = JSON.parse(fs.readFileSync(path.join(dataRoot, "sessions", a, "storage", "standby.json"), "utf-8"));
-    assert(saved.mode === "flowing", "its app state is saved in its own directory");
+    assert(saved.animation_mode === "flowing", "its app state is saved in its own directory");
 
     const reopenedA = new Viewer(a);
     await reopenedA.open();
@@ -202,7 +274,7 @@ async function main() {
     assert(manager.get(a)?.activeAppName === "Launcher", "left at the launcher, it resumes at the launcher");
 
     // Leave Clock open this time
-    reopenedA.send({ type: "key", key: "ArrowRight" });
+    select(manager, a, "Clock");
     reopenedA.send({ type: "key", key: "Enter" });
     await wait(200);
     assert(manager.get(a)?.activeAppName === "Clock", "Clock is open");

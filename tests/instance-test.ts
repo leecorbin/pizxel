@@ -89,6 +89,14 @@ function press(t: TestInstance, key: string): void {
   t.instance.run(() => t.input.press(key));
 }
 
+/** Highlight an app in the launcher by name (icon order depends on the apps) */
+function select(t: TestInstance, appName: string): void {
+  const launcher = (t.instance.appFramework as any).launcherApp;
+  const icon = launcher.apps.find((i: any) => i.name === appName);
+  if (!icon) throw new Error(`No launcher icon for ${appName}`);
+  launcher.selectApp(icon.app);
+}
+
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function assert(condition: any, message: string): void {
@@ -136,8 +144,8 @@ async function main() {
     assert(b.display.checksum === bBefore, "key to A leaves B's display alone");
 
     console.log("Storage");
-    // A: back to first launcher item (Standby), open it, change mode, leave
-    press(a, "ArrowLeft");
+    // A: open Standby, change mode, leave
+    select(a, "Standby");
     press(a, "Enter");
     await wait(200);
     press(a, " ");

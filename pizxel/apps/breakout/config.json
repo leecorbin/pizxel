@@ -1,0 +1,15 @@
+{
+  "name": "Breakout",
+  "version": "1.0.0",
+  "description": "Classic brick-breaking game with power-ups",
+  "author": "PiZXel Team",
+  "icon": "🧱",
+  "main": "main.ts",
+  "color": [
+    255,
+    100,
+    50
+  ],
+  "category": "game",
+  "tier": "core"
+}

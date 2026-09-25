@@ -1,0 +1,9 @@
+{
+  "name": "Settings",
+  "version": "1.0.0",
+  "description": "System configuration",
+  "author": "PiZXel Team",
+  "main": "main.ts",
+  "icon": "⚙️",
+  "tier": "core"
+}

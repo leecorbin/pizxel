@@ -26,6 +26,8 @@ export interface SessionOptions {
   idleSuspendMs: number;
   /** Extra apps directory (e.g. private apps), or null for none */
   extraAppsDir: string | null;
+  /** Load "private" tier apps (only for a private instance) */
+  includePrivateApps: boolean;
 }
 
 interface SessionMeta {
@@ -149,8 +151,18 @@ export class Session implements AudioBridge {
     await audioInput.initialize();
 
     const enabledApps = new Set(this.getEnabledApps());
-    const include = (app: AppListing) =>
-      (app.config.tier ?? "core") === "core" || enabledApps.has(app.id);
+    const include = (app: AppListing) => {
+      switch (app.config.tier ?? "core") {
+        case "core":
+          return true;
+        case "optional":
+          return enabledApps.has(app.id);
+        case "private":
+          return this.options.includePrivateApps;
+        default:
+          return false;
+      }
+    };
 
     display.onFrame = (frame) => this.broadcastFrame(frame);
 

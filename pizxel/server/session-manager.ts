@@ -17,6 +17,8 @@ export interface ServerConfig {
   fps: number;
   idleSuspendMs: number;
   extraAppsDir: string | null;
+  /** Load "private" tier apps (only for a private instance) */
+  includePrivateApps: boolean;
 }
 
 export interface CatalogEntry {
@@ -25,7 +27,7 @@ export interface CatalogEntry {
   description: string;
   icon: string;
   category: string | null;
-  tier: "core" | "optional";
+  tier: "core" | "optional" | "private";
 }
 
 /** Session ids: 16 random bytes, base64url (22 characters) */
@@ -125,20 +127,27 @@ export class SessionManager {
   }
 
   /**
-   * Apps visitors can have: core (always on) and optional (switch on per session)
+   * Apps visitors can have: core (always on) and optional (switch on per
+   * session), plus private apps on a private instance
    */
   catalog(): CatalogEntry[] {
     const scanner = new AppScanner(undefined, {
       userAppsPath: this.config.extraAppsDir,
     });
-    return scanner.listApps().map(({ id, config }) => ({
-      id,
-      name: config.name,
-      description: config.description ?? "",
-      icon: config.icon,
-      category: config.category ?? null,
-      tier: config.tier ?? "core",
-    }));
+    return scanner
+      .listApps()
+      .filter(
+        ({ config }) =>
+          config.tier !== "private" || this.config.includePrivateApps
+      )
+      .map(({ id, config }) => ({
+        id,
+        name: config.name,
+        description: config.description ?? "",
+        icon: config.icon,
+        category: config.category ?? null,
+        tier: config.tier ?? "core",
+      }));
   }
 
   /**
@@ -157,6 +166,7 @@ export class SessionManager {
       fps: this.config.fps,
       idleSuspendMs: this.config.idleSuspendMs,
       extraAppsDir: this.config.extraAppsDir,
+      includePrivateApps: this.config.includePrivateApps,
     });
   }
 }
