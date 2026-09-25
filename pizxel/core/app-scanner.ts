@@ -22,6 +22,10 @@ export interface AppConfig {
   // are switched on per session, "private" apps only run on a private
   // instance (INCLUDE_PRIVATE_APPS). Local modes load every app.
   tier?: "core" | "optional" | "private";
+  // Hosts the app contacts ("*.example.com" includes subdomains). No
+  // "network", no network: the engine's allowlist and the egress proxy's are
+  // built from these.
+  network?: string[];
 }
 
 export interface AppListing {

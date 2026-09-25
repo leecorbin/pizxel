@@ -10,7 +10,8 @@
     "start:term": "tsx pizxel/start.ts --term",
     "start:server": "tsx pizxel/start-server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/font-test.ts && tsx tests/terminal-test.ts && tsx tests/framebuffer-test.ts && tsx tests/network-test.ts && tsx tests/instance-test.ts && tsx tests/server-test.ts && tsx tests/apps-test.ts && tsx tests/playability-test.ts",
+    "egress-allowlist": "tsx pizxel/tools/egress-allowlist.ts",
+    "test": "tsx tests/font-test.ts && tsx tests/vault-test.ts && tsx tests/terminal-test.ts && tsx tests/framebuffer-test.ts && tsx tests/network-test.ts && tsx tests/instance-test.ts && tsx tests/server-test.ts && tsx tests/apps-test.ts && tsx tests/playability-test.ts",
     "clean": "rm -rf dist"
   },
   "keywords": [

@@ -22,6 +22,7 @@ import {
   runInContext,
 } from "./instance-context";
 import type { Audio } from "../audio/audio";
+import { Vault, appSecrets } from "./vault";
 import type { AudioInputDriver } from "../drivers/audio/audio-input-driver";
 
 export interface InstanceOptions {
@@ -41,6 +42,8 @@ export interface InstanceOptions {
   startApp?: string | null;
   /** Automatic standby (screensaver) after idle (default true) */
   standby?: boolean;
+  /** Secrets vault; each loaded app gets its own view of it (app.secrets) */
+  vault?: Vault | null;
 }
 
 export interface PizxelInstance {
@@ -70,6 +73,7 @@ export async function createInstance(
     : getDefaultContext();
   context.audio = options.audio ?? null;
   context.audioInput = options.audioInput ?? null;
+  context.vault = options.vault ?? null;
 
   const { deviceManager } = options;
   const scanner = new AppScanner(undefined, options.scanner);
@@ -77,6 +81,10 @@ export async function createInstance(
   let launcher: LauncherApp;
 
   const registerWithLauncher = async (app: ScannedApp) => {
+    // Each app sees only its own secrets
+    if (context.vault) {
+      (app.instance as any).secrets = appSecrets(context.vault, app.id);
+    }
     const color = app.config.color || [255, 255, 255];
     const category = app.config.category; // Get category from config
     await launcher.registerApp(

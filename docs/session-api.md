@@ -116,6 +116,17 @@ PUT {"enabled": ["some-optional-app"]}
 404 {"error": "not found"}
 ```
 
+### `DELETE /sessions/:id/vault`
+
+Deletes the session's vault and every secret in it (the site calls this
+when a person resets their vault after losing every unlocker, so old
+secrets can't be opened by a new key). Connected viewers get
+`{"type":"vault:state","state":"none"}`. Idempotent.
+
+```
+204 (no body)
+```
+
 ### `GET /healthz`
 
 No authentication.
@@ -152,6 +163,10 @@ skipped for it until it catches up.
 | `{"type":"audio:sweep","startFreq":400,"endFreq":800,"duration":100,"volume":0.15}` | Play a frequency sweep |
 | `{"type":"audio:request-start","app":"now-playing","name":"Now Playing"}` | An app wants the microphone (see below); `app` is its catalog id (`null` if unknown), `name` its display name |
 | `{"type":"audio:request-stop"}` | The app is done with the microphone |
+| `{"type":"vault:state","state":"none"\|"locked"\|"unlocked"}` | The vault's state: sent on every connect and whenever it changes (see Vault) |
+| `{"type":"vault:setup","app":"news-reader","name":"apiKey"}` | An app is saving its first secret and no vault exists yet: run onboarding, then send `vault:key` |
+| `{"type":"vault:need","app":"news-reader","name":"apiKey"}` | An app needs a secret while the vault is locked: unlock (silently if possible), then send `vault:key` |
+| `{"type":"vault:bad-key"}` | The `vault:key` sent doesn't open this vault |
 | `{"type":"escape:unhandled"}` | Escape was pressed at the launcher and nothing used it (sent for a non-repeat keydown only), e.g. so the viewer can leave full screen |
 
 Viewers should ignore message types they don't know.
@@ -163,6 +178,7 @@ Viewers should ignore message types they don't know.
 | `{"type":"key","key":"ArrowUp","repeat":false,"code":"ArrowUp","shift":false,"ctrl":false,"alt":false}` | A keydown |
 | `{"type":"keyup","key":"ArrowUp"}` | A key released; `"key":"*"` releases every key |
 | `{"type":"text","text":"pasted text"}` | Paste |
+| `{"type":"vault:key","key":"<base64url, 32 bytes>"}` | The vault key (VK), to unlock this session's vault |
 
 - **`key`** is `KeyboardEvent.key`, sent for every keydown, including
   auto-repeat. PiZXel handles:
@@ -222,6 +238,30 @@ The local canvas viewer is a working reference for the analysis (functions
 `calculateSpectrum`, `calculateLevels`, `calculateWaveform` and
 `classifyAudio` in `pizxel/display/canvas-server.ts`).
 
+### Vault (secrets)
+
+Apps keep secrets such as API keys in a per-session vault. Each secret is
+encrypted (AES-256-GCM, with its app id and name bound to it) under a
+**vault key (VK)** that the engine never stores: the browser unwraps it (from
+a device key, recovery code or passphrase, which the site holds) and sends
+it as `vault:key`. See the design in the infrastructure handoff
+`pizxel-vault-and-egress.md`.
+
+- On connect the engine sends `vault:state`. If it's `locked` and the
+  browser can unlock silently, it sends `vault:key`.
+- The first `vault:key` while the state is `none` creates the vault. Later
+  keys are checked against it: a wrong one gets `vault:bad-key` and isn't
+  kept.
+- `key` is exactly 32 bytes as base64url (43 characters, no padding);
+  anything else is ignored. It's never logged or written to disk.
+- The engine forgets VK when the session suspends or its last viewer
+  disconnects; the next connect sends it again.
+- `vault:setup` and `vault:need` are sent at most once per app and name
+  until the state changes.
+- While locked, apps read secrets as missing (they don't hang).
+- Apps' own names for secrets are listed (never their values) in
+  Settings → Keys, where they can be deleted.
+
 ### Close codes (server → client)
 
 | Code | Meaning | Suggested handling |
@@ -248,10 +288,16 @@ The local canvas viewer is a working reference for the analysis (functions
   installs a guard that blocks them whatever the app code does: `fetch` is
   refused, and the `http`/`https` modules can only reach the machine itself
   (see `pizxel/core/network.ts`).
-- A private instance can allow requests to allowlisted hosts only
-  (`ALLOW_NETWORK=true`, with an `egress-allowlist.txt`). It sends them
-  through the egress proxy (`HTTPS_PROXY` with `NODE_USE_ENV_PROXY=1`); the
-  proxy and the engine both enforce the allowlist.
+- With `ALLOW_NETWORK=true`, an instance may reach only the hosts its apps
+  declare in their manifests (`"network": ["newsapi.org"]` in
+  `config.json`; an app without it gets no network). A private instance
+  counts all its apps, a public one only public-tier apps. Requests go
+  through the egress proxy (`HTTPS_PROXY` with `NODE_USE_ENV_PROXY=1`),
+  whose allowlist file is generated from the same manifests
+  (`npm run egress-allowlist -- <apps dir> --out <file>`); the proxy and the
+  engine both enforce it.
+- Secrets saved by apps are encrypted in the vault; the key that opens it
+  is in memory only while the person's session is live (see Vault).
 - The ZX Spectrum emulator (jsspeccy3) isn't in the image.
 
 ## Configuration
@@ -266,7 +312,6 @@ The local canvas viewer is a working reference for the analysis (functions
 | `IDLE_SUSPEND_SECONDS` | `60` | Delay before suspending an unwatched session |
 | `EXTRA_APPS_DIR` | (none) | Extra apps directory |
 | `INCLUDE_PRIVATE_APPS` | `false` | Load `private` tier apps (Lee's private instance only) |
-| `ALLOW_NETWORK` | `false` | Allow outbound requests to allowlisted hosts (private instance only) |
-| `EGRESS_ALLOWLIST` | `$EXTRA_APPS_DIR/egress-allowlist.txt` | Allowlist: one host per line, `*.example.com` for subdomains, `#` comments |
+| `ALLOW_NETWORK` | `false` | Allow outbound requests to the hosts the instance's apps declare (`"network"` in their manifests) |
 | `HTTPS_PROXY`, `NODE_USE_ENV_PROXY=1` | (none) | Send allowed requests through the egress proxy (Node's fetch needs both) |
 | `PIZXEL_DEBUG` | (off) | Per-frame and per-key debug logging |

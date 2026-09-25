@@ -14,6 +14,7 @@ import type { AddressInfo } from "net";
 import { WebSocket } from "ws";
 import { SessionManager } from "../pizxel/server/session-manager";
 import { createSessionServer } from "../pizxel/server/server";
+import * as crypto from "crypto";
 
 const TOKEN = "test-token";
 const FRAME_BYTES = 256 * 192 * 3;
@@ -318,6 +319,37 @@ async function main() {
     viewerB.send({ type: "key", key: "Escape" });
     await wait(200);
 
+    console.log("Vault");
+    assert(
+      viewerB.messages.some((m) => m.type === "vault:state" && m.state === "none"),
+      "vault:state is sent on connect (none yet)"
+    );
+    const bLauncher = (manager.get(b) as any).instance.appFramework.launcherApp;
+    const clockApp = bLauncher.apps.find((i: any) => i.name === "Clock").app;
+    assert(clockApp.secrets && !clockApp.secrets.set("token", "t0p-secret"), "saving a secret with no vault fails");
+    await viewerB.waitFor(() => viewerB.messages.some((m) => m.type === "vault:setup"));
+    const setup = viewerB.messages.find((m) => m.type === "vault:setup");
+    assert(setup.app === "clock" && setup.name === "token", "and sends vault:setup naming the app and secret");
+    clockApp.secrets.set("token", "again");
+    await wait(50);
+    assert(viewerB.messages.filter((m) => m.type === "vault:setup").length === 1, "only once until the state changes");
+    const vk = crypto.randomBytes(32).toString("base64url");
+    viewerB.send({ type: "vault:key", key: vk });
+    await viewerB.waitFor(() => viewerB.messages.some((m) => m.type === "vault:state" && m.state === "unlocked"));
+    assert(clockApp.secrets.set("token", "t0p-secret") && clockApp.secrets.get("token") === "t0p-secret", "vault:key unlocks it and secrets work");
+    const vaultFile = fs.readFileSync(path.join(dataRoot, "sessions", b, "vault", "vault.json"), "utf-8");
+    assert(!vaultFile.includes("t0p-secret") && !vaultFile.includes(vk), "the session's vault file holds neither the secret nor the key");
+    viewerB.send({ type: "vault:key", key: crypto.randomBytes(32).toString("base64url") });
+    await viewerB.waitFor(() => viewerB.messages.some((m) => m.type === "vault:bad-key"));
+    assert(clockApp.secrets.get("token") === "t0p-secret", "a wrong key gets vault:bad-key (and changes nothing)");
+    viewerB.send({ type: "vault:key", key: "not-a-key" });
+    await wait(50);
+    assert(viewerB.messages.filter((m) => m.type === "vault:bad-key").length === 1, "a malformed key is ignored");
+    assert((await api("DELETE", `/sessions/${b}/vault`)).status === 204, "DELETE /sessions/:id/vault");
+    await viewerB.waitFor(() => viewerB.messages.filter((m) => m.type === "vault:state" && m.state === "none").length >= 2);
+    assert(clockApp.secrets.get("token") === null, "wipes the vault and its secrets");
+    assert((await api("DELETE", `/sessions/${b}/vault`)).status === 204, "and is idempotent");
+
     console.log("Limits");
     const c = (await api("POST", "/sessions")).json.id;
     const viewerC = new Viewer(c);
@@ -363,6 +395,8 @@ async function main() {
     await reopenedA.waitFor(() => reopenedA.frames.length > 0);
     assert(reopenedA.messages[0]?.type === "init", "reconnecting resumes it (init + frame)");
     assert(manager.get(a)?.activeAppName === "Launcher", "left at the launcher, it resumes at the launcher");
+    reopenedA.send({ type: "vault:key", key: crypto.randomBytes(32).toString("base64url") });
+    await reopenedA.waitFor(() => reopenedA.messages.some((m) => m.type === "vault:state" && m.state === "unlocked"));
 
     // Leave Clock open this time
     select(manager, a, "Clock");
@@ -370,6 +404,9 @@ async function main() {
     await wait(200);
     assert(manager.get(a)?.activeAppName === "Clock", "Clock is open");
     reopenedA.close();
+    await reopenedA.waitForClose();
+    await wait(30);
+    assert((manager.get(a) as any).vault.state() === "locked", "the vault locks when the last viewer leaves");
     await wait(IDLE_SUSPEND_MS + 300);
     assert((await api("GET", `/sessions/${a}/status`)).json.state === "suspended", "it suspends again");
 

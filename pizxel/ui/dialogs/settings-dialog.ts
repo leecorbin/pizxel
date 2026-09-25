@@ -80,6 +80,7 @@ export class SettingsDialog extends Widget {
         textColor: [255, 255, 255],
         bgColor: [20, 20, 20],
         borderColor: [0, 100, 200],
+        masked: field.type === "password",
       });
 
       input.setValue(values[field.key] || "");

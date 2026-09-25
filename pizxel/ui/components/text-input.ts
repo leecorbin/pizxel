@@ -20,6 +20,8 @@ export interface TextInputOptions {
   borderColor?: [number, number, number];
   onChange?: (value: string) => void;
   onSubmit?: (value: string) => void;
+  /** Show "*" for each character (passwords, API keys) */
+  masked?: boolean;
 }
 
 export class TextInput extends Widget {
@@ -30,6 +32,7 @@ export class TextInput extends Widget {
   private readonly blinkInterval: number = 500; // ms
 
   private placeholder: string;
+  private masked: boolean;
   private maxLength: number;
   private textColor: [number, number, number];
   private bgColor: [number, number, number];
@@ -42,6 +45,7 @@ export class TextInput extends Widget {
     super({ x: options.x, y: options.y, width: options.width, height: 10 }); // 10px height (8px font + 1px padding)
 
     this.placeholder = options.placeholder || "";
+    this.masked = options.masked ?? false;
     this.maxLength = options.maxLength || 20;
     this.textColor = options.textColor || [255, 255, 255];
     this.bgColor = options.bgColor || [0, 0, 0];
@@ -180,7 +184,11 @@ export class TextInput extends Widget {
     );
 
     // Draw text or placeholder
-    const displayText = this.value || this.placeholder;
+    const displayText = this.value
+      ? this.masked
+        ? "*".repeat(this.value.length)
+        : this.value
+      : this.placeholder;
     const color = this.value
       ? this.textColor
       : ([64, 64, 64] as [number, number, number]);

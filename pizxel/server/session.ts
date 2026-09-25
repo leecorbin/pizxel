@@ -18,6 +18,7 @@ import { CanvasAudioInputProxy } from "../drivers/audio/canvas-audio-input-proxy
 import type { AudioBridge } from "../drivers/audio/audio-bridge";
 import { AppScanner, AppListing } from "../core/app-scanner";
 import { SessionDisplayDriver, SessionInputDriver } from "./session-drivers";
+import { Vault } from "../core/vault";
 
 export type SessionState = "live" | "suspended";
 
@@ -87,6 +88,10 @@ export class Session implements AudioBridge {
   private lastInputAt: number = Date.now();
   private idleTimer: NodeJS.Timeout | null = null;
   private throttled: boolean = false;
+  /** Secrets vault (file-based; VK only in memory while unlocked) */
+  private vault: Vault;
+  /** vault:setup / vault:need already sent, until the vault state changes */
+  private vaultRequestsSent: Set<string> = new Set();
   private instance: PizxelInstance | null = null;
   private display: SessionDisplayDriver | null = null;
   private input: SessionInputDriver | null = null;
@@ -99,6 +104,17 @@ export class Session implements AudioBridge {
     this.id = id;
     this.dir = dir;
     this.options = options;
+    this.vault = new Vault(path.join(dir, "vault"));
+    this.vault.onStateChange = (state) => {
+      this.vaultRequestsSent.clear();
+      this.broadcastJSON({ type: "vault:state", state });
+    };
+    this.vault.onRequest = (kind, app, name) => {
+      const key = `${kind}\0${app}\0${name}`;
+      if (this.vaultRequestsSent.has(key)) return;
+      this.vaultRequestsSent.add(key);
+      this.broadcastJSON({ type: kind === "setup" ? "vault:setup" : "vault:need", app, name });
+    };
     this.lastActiveAt = this.readMeta()?.lastActiveAt ?? Date.now();
   }
 
@@ -220,6 +236,7 @@ export class Session implements AudioBridge {
       scanner: { userAppsPath: this.options.extraAppsDir, include },
       fps: this.options.fps,
       startApp: this.readConfig().lastApp,
+      vault: this.vault,
       // No screensaver for web visitors (it would also keep sending frames)
       standby: false,
     });
@@ -249,6 +266,7 @@ export class Session implements AudioBridge {
       });
     }
 
+    this.vault.lock(); // VK lives only while the session does
     if (this.catchUpTimer) clearTimeout(this.catchUpTimer);
     this.catchUpTimer = null;
     if (this.idleTimer) clearInterval(this.idleTimer);
@@ -289,6 +307,7 @@ export class Session implements AudioBridge {
       });
       const frame = display.getLastFrame();
       if (frame) ws.send(frame, { binary: true });
+      this.sendJSON(ws, { type: "vault:state", state: this.vault.state() });
     }
 
     ws.on("message", (data, isBinary) => {
@@ -311,6 +330,11 @@ export class Session implements AudioBridge {
     if (!this.sockets.delete(ws)) return;
     this.lagging.delete(ws);
     this.releaseKeys(ws);
+
+    // No viewer left: forget VK (the next viewer sends it again)
+    if (this.sockets.size === 0) {
+      this.vault.lock();
+    }
 
     // No viewer left to capture the microphone
     if (this.sockets.size === 0 && this.audioInputCallback && this.instance) {
@@ -393,6 +417,16 @@ export class Session implements AudioBridge {
         }
         break;
 
+      case "vault:key":
+        // Exactly 32 bytes of base64url; never logged
+        if (typeof msg.key === "string" && /^[A-Za-z0-9_-]{43}$/.test(msg.key)) {
+          const key = Buffer.from(msg.key, "base64url");
+          const ok = instance.run(() => this.vault.unlock(key));
+          key.fill(0);
+          if (!ok) this.sendJSON(ws, { type: "vault:bad-key" });
+        }
+        break;
+
       case "text":
         if (typeof msg.text === "string") {
           this.noteInput();
@@ -456,6 +490,11 @@ export class Session implements AudioBridge {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(message));
     }
+  }
+
+  /** Delete the vault and all secrets (DELETE /sessions/:id/vault) */
+  wipeVault(): void {
+    this.vault.wipe();
   }
 
   // ===== AudioBridge =====

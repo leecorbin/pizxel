@@ -12,6 +12,9 @@
 
 import { DeviceManager } from "./core/device-manager";
 import { createInstance } from "./core/instance";
+import { getDefaultContext } from "./core/instance-context";
+import { Vault, localVaultKey } from "./core/vault";
+import * as path from "path";
 import { TerminalDisplayDriver } from "./drivers/display/terminal-display";
 import { CanvasDisplayDriver } from "./drivers/display/canvas-display-driver";
 import { FramebufferDisplayDriver } from "./drivers/display/framebuffer-display";
@@ -122,11 +125,24 @@ async function main() {
     });
   }
 
+  // Secrets vault, unlocked with the local key file (~/.config/pizxel)
+  let vault: Vault | null = null;
+  try {
+    vault = new Vault(path.join(getDefaultContext().dataRoot, "vault"));
+    if (!vault.unlock(localVaultKey())) {
+      console.error("Vault: the local key file doesn't match this vault; secrets unavailable");
+    }
+  } catch (error) {
+    console.error("Vault unavailable:", (error as Error).message);
+    vault = null;
+  }
+
   // Create the PiZXel instance (framework, launcher, apps)
   const instance = await createInstance({
     deviceManager,
     audio,
-    audioInput: audioInput,
+    audioInput,
+    vault,
   });
 
   console.log("=== PiZXel OS Launched ===");

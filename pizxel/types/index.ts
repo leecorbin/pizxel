@@ -50,6 +50,13 @@ export interface App {
   onKeyUp?(event: InputEvent): void;
   render(matrix: any): void; // DisplayBuffer from core/display-buffer.ts
 
+  /**
+   * This app's secrets (API keys), set by the framework when the app is
+   * loaded: encrypted, only this app's, and usable while the vault is
+   * unlocked. See core/vault.ts.
+   */
+  secrets?: import("../core/vault").AppSecrets;
+
   // Optional lifecycle methods
   onBackgroundTick?(): void;
   onSaveState?(): any;

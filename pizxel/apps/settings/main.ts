@@ -8,6 +8,8 @@ import { getAudio } from "../../start";
 import { Sounds } from "../../audio/audio";
 import { AppStorage } from "../../storage";
 import { getAppFramework } from "../../start";
+import { getInstanceContext } from "../../core/instance-context";
+import { AppScanner } from "../../core/app-scanner";
 
 type ItemId =
   | "volume"
@@ -15,6 +17,7 @@ type ItemId =
   | "standbyTimeout"
   | "standbyEnabled"
   | "testStandby"
+  | "keys"
   | "about";
 
 interface MenuItem {
@@ -36,6 +39,12 @@ export class SettingsApp implements App {
   private selectedIndex = 0;
   private showingAbout = false;
 
+  // Keys screen: apps' saved secrets (names only), with delete
+  private showingKeys = false;
+  private keyEntries: Array<{ app: string; appName: string; name: string }> = [];
+  private keyIndex = 0;
+  private confirmingDelete = false;
+
   private menuItems: MenuItem[] = [
     { id: "volume", name: "Volume", type: "slider", value: 80, min: 0, max: 100, step: 10 },
     { id: "brightness", name: "Brightness", type: "slider", value: 100, min: 0, max: 100, step: 10 },
@@ -43,6 +52,7 @@ export class SettingsApp implements App {
     { id: "standbyTimeout", name: "Standby after", type: "slider", value: 120, min: 30, max: 600, step: 30 },
     { id: "standbyEnabled", name: "Standby", type: "toggle", value: 1 },
     { id: "testStandby", name: "Test standby now", type: "button", value: 0 },
+    { id: "keys", name: "Keys", type: "button", value: 0 },
     { id: "about", name: "About", type: "button", value: 0 },
   ];
 
@@ -74,6 +84,7 @@ export class SettingsApp implements App {
 
   async onActivate(): Promise<void> {
     this.showingAbout = false;
+    this.showingKeys = false;
     this.dirty = true;
   }
 
@@ -83,6 +94,12 @@ export class SettingsApp implements App {
 
   onEvent(event: InputEvent): boolean {
     if (event.type !== "keydown") return false;
+
+    if (this.showingKeys) {
+      this.handleKeysEvent(event);
+      this.dirty = true;
+      return true;
+    }
 
     // The About panel closes on any key (Escape too, rather than leaving)
     if (this.showingAbout) {
@@ -166,6 +183,10 @@ export class SettingsApp implements App {
         getAudio()?.play(Sounds.SELECT);
         this.showingAbout = true;
         return true;
+      case "keys":
+        getAudio()?.play(Sounds.SELECT);
+        this.openKeys();
+        return true;
       case "standbyEnabled":
         // Enter flips a toggle too
         return this.adjust(item, item.value === 1 ? -1 : 1);
@@ -222,6 +243,11 @@ export class SettingsApp implements App {
       this.dirty = false;
       return;
     }
+    if (this.showingKeys) {
+      this.renderKeys(matrix);
+      this.dirty = false;
+      return;
+    }
 
     // Title
     matrix.text("SETTINGS", 8, 8, [255, 255, 255]);
@@ -253,7 +279,7 @@ export class SettingsApp implements App {
         matrix.text(on ? "ON" : "OFF", barX, y, isSelected ? color : toggleColor);
       }
 
-      y += 20;
+      y += 18;
     }
 
     // Instructions (each line fits the 256px screen)
@@ -261,6 +287,90 @@ export class SettingsApp implements App {
     matrix.centeredText("Enter Activate  ESC Exit", 176, [150, 150, 150]);
 
     this.dirty = false;
+  }
+
+  // ===== Keys =====
+
+  private openKeys(): void {
+    const vault = getInstanceContext().vault;
+    const names = new Map(
+      new AppScanner().listApps().map((app) => [app.id, app.config.name])
+    );
+    this.keyEntries = [];
+    for (const { app, names: secretNames } of vault?.list() ?? []) {
+      for (const name of secretNames) {
+        this.keyEntries.push({ app, appName: names.get(app) ?? app, name });
+      }
+    }
+    this.keyIndex = 0;
+    this.confirmingDelete = false;
+    this.showingKeys = true;
+  }
+
+  private handleKeysEvent(event: InputEvent): void {
+    if (this.confirmingDelete) {
+      const entry = this.keyEntries[this.keyIndex];
+      if (event.key === InputKeys.OK && entry) {
+        getInstanceContext().vault?.delete(entry.app, entry.name);
+        getAudio()?.play(Sounds.SELECT);
+        this.openKeys();
+        return;
+      }
+      this.confirmingDelete = false; // Anything else cancels
+      return;
+    }
+
+    switch (event.key) {
+      case InputKeys.UP:
+        this.keyIndex = Math.max(0, this.keyIndex - 1);
+        break;
+      case InputKeys.DOWN:
+        this.keyIndex = Math.min(this.keyEntries.length - 1, this.keyIndex + 1);
+        break;
+      case InputKeys.OK:
+      case InputKeys.BACK:
+        if (this.keyEntries.length > 0) this.confirmingDelete = true;
+        break;
+      case InputKeys.HOME:
+        this.showingKeys = false; // Escape: back to Settings, not out
+        break;
+    }
+  }
+
+  private renderKeys(matrix: DisplayBuffer): void {
+    matrix.text("KEYS", 8, 8, [255, 255, 255]);
+
+    const state = getInstanceContext().vault?.state() ?? "none";
+    const status =
+      state === "unlocked" ? "Unlocked" : state === "locked" ? "Locked" : "No keys saved yet";
+    matrix.text(status, 256 - matrix.measureText(status) - 8, 8, [150, 150, 150]);
+
+    if (this.keyEntries.length === 0) {
+      matrix.centeredText("No saved keys", 80, [200, 200, 200]);
+      matrix.centeredText("Apps save keys here", 96, [150, 150, 150]);
+      matrix.centeredText("when you enter them", 108, [150, 150, 150]);
+    }
+
+    // Names only, never values; up to 10 rows
+    const first = Math.max(0, Math.min(this.keyIndex - 4, this.keyEntries.length - 10));
+    let y = 30;
+    for (let i = first; i < Math.min(this.keyEntries.length, first + 10); i++) {
+      const entry = this.keyEntries[i];
+      const selected = i === this.keyIndex;
+      const color: RGB = selected ? [255, 255, 0] : [200, 200, 200];
+      const label = `${entry.appName}: ${entry.name}`.slice(0, 28);
+      matrix.text(selected ? "→" : " ", 8, y, color);
+      matrix.text(label, 20, y, color);
+      y += 12;
+    }
+
+    if (this.confirmingDelete) {
+      matrix.centeredText("Delete this key?", 158, [255, 100, 100]);
+      matrix.centeredText("Enter Yes   any key No", 172, [200, 200, 200]);
+    } else {
+      matrix.centeredText("↑↓ Select  Enter Delete", 162, [150, 150, 150]);
+      matrix.centeredText("ESC Back", 176, [150, 150, 150]);
+    }
   }
 
   private renderAbout(matrix: DisplayBuffer): void {

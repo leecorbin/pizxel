@@ -15,6 +15,7 @@ import * as path from "path";
 import type { Audio } from "../audio/audio";
 import type { AudioInputDriver } from "../drivers/audio/audio-input-driver";
 import type { AppFramework } from "./app-framework";
+import type { Vault } from "./vault";
 
 export interface InstanceContext {
   /** Root for this instance's saved data (default: data/default-user) */
@@ -22,6 +23,8 @@ export interface InstanceContext {
   audio: Audio | null;
   audioInput: AudioInputDriver | null;
   appFramework: AppFramework | null;
+  /** This instance's secrets vault (null: none) */
+  vault?: Vault | null;
 }
 
 const contextStorage = new AsyncLocalStorage<InstanceContext>();

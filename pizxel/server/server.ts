@@ -74,6 +74,12 @@ export function createSessionServer(
     });
   });
 
+  app.delete("/sessions/:id/vault", (req, res) => {
+    const session = manager.get(req.params.id);
+    session?.wipeVault(); // Idempotent: nothing to do for an unknown session
+    res.status(204).end();
+  });
+
   app.get("/catalog", (_req, res) => {
     res.json(manager.catalog());
   });
