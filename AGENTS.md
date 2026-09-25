@@ -1,77 +1,86 @@
-# AI Agent Guide for MatrixOS
+# AI Agent Guide for PiZXel
 
-**For AI assistants working on MatrixOS development**
+**For AI assistants (and humans) working on PiZXel**
 
-This document contains critical knowledge about MatrixOS architecture, common pitfalls, best practices, and design philosophy learned through extensive development and debugging sessions. Read this *before* making changes to avoid introducing bugs we've already fixed!
+This file collects what we've learned about PiZXel's architecture, its common
+pitfalls and its design philosophy. Read it *before* making changes so you
+don't reintroduce bugs we've already fixed.
+
+PiZXel is the TypeScript/Node rewrite of an earlier Python project,
+**MatrixOS**. The Python code is kept in `matrixos-archive/` for reference
+only. Nothing there runs, and its APIs (`matrix.set_pixel`, `TestRunner("examples.x.main")`,
+`pip install`) are **not** PiZXel's.
 
 ---
 
 ## 🎯 Project Philosophy
 
-**MatrixOS** is a retro-aesthetic, modern-engineering LED matrix OS:
+**PiZXel** is a retro-looking LED matrix OS built with modern engineering.
 
 ### Core Principles
 
 1. **Retro Aesthetic, Modern Practices**
-   - Visual: ZX Spectrum font, 8-bit games, LED matrix look
-   - Engineering: Automated testing, logging, clean architecture
+   - Visual: ZX Spectrum 8×8 font, 256×192 resolution, 8-bit games, LED-matrix look
+   - Engineering: TypeScript, automated tests, clean architecture
    - "It should *look* like 1983 but *work* like 2025"
 
 2. **Minimal Dependencies, Maximum Functionality**
-   - Production: Only Pillow (for emoji rendering)
-   - Testing: Pure Python stdlib (no numpy!)
-   - Goal: Run on low-power Raspberry Pi Zero
-   - **Critical**: Hardware has limited resources
+   - Runtime deps are few and deliberate: `canvas` (emoji rendering), `express` + `socket.io` (browser display), `ws` (session server), `tsx` (runs TypeScript directly, no build step)
+   - Testing: plain TypeScript, no test framework
+   - Goal: run on a low-power Raspberry Pi
+   - **Critical**: the hardware has limited resources
 
 3. **Emoji as Instant Icons**
-   - Apps use real emoji for icons: `{"emoji": "🐸"}`
-   - Modern approach: leverage Unicode instead of pixel art
-   - Fallback to pixel art only when needed
-   - **Don't overthink it**: If emoji exists, use it!
+   - Apps use real emoji for icons: `"icon": "🐸"` in `config.json`
+   - Modern approach: use Unicode instead of drawing pixel art
+   - **Don't overthink it**: if an emoji exists, use it!
 
 4. **Easy Installation**
-   - Keep dependencies minimal (limited hardware)
-   - Pure Python solutions preferred over libraries
-   - Example: Testing framework uses lists, not numpy
+   - `git clone`, `npm ci`, `npm start`. Keep it that way
+   - Plain TypeScript solutions are preferred over new packages
+
+5. **Extend, Don't Redesign**
+   - The pizxel.uk session server (`npm run start:server`) is an **addition**. It runs many isolated PiZXels in one process, but it must not change how local PiZXel works
+   - Clone-and-run (`npm start`, `start:canvas`, `start:term`) and Raspberry Pi framebuffer use (`start:fb`) must keep working unchanged
+   - New features plug into existing seams (drivers, `createInstance()` options, `InstanceContext`) instead of replacing them
+   - When you touch shared code (`core/`, `apps/`, `drivers/`), check it in local mode **and** server mode
 
 ### Key User Interventions
 
-These are **critical moments** where the project lead corrected course. Learn from these!
+These are the **critical moments** when the project lead changed course. Learn from them!
 
 #### "Just a quick intervention..." - The Numpy Decision
 
-**Context:** AI suggested using numpy for testing framework's display buffer.
+**Context:** In the Python days, the AI suggested numpy for the test display buffer.
 
 **User's intervention:**
 > "just a quick intervention; what is numpy and why would that be better than using python lists? remember we are trying to keep this as easy to install as possible"
 
-**Lesson:** Always question if a dependency is *really* needed. Raspberry Pi Zero has limited resources. Pure Python lists work fine for a 128×128 buffer. Don't add libraries just because they're "better" - ask "is this necessary?"
+**Lesson:** Always ask whether a dependency is *really* needed. A 256×192 `RGB[][]` array is fine; we don't need a typed-array library or an image package for it. Before you add anything to `package.json`, ask "is this necessary, and will it install on a Pi?"
 
-**Impact:** Entire testing framework rewritten to use pure Python. Zero dependencies.
+**Impact:** The testing framework is dependency-free, then in Python and now in TypeScript.
 
 #### "That's cute, but..." - The Emoji Philosophy
 
-**Context:** AI created detailed pixel art frog icon (2485 bytes) for Frogger game.
+**Context:** The AI drew a detailed pixel-art frog icon (2485 bytes) for Frogger.
 
 **User's correction:**
 > "that's cute, but why are we not using the emoji itself as we are with other apps?"
 
-**Solution:** Changed to `{"emoji": "🐸"}` (simple reference to Unicode emoji)
+**Solution:** The icon became the 🐸 emoji.
 
-**Lesson:** Modern approach = use emoji when they exist! Don't reinvent the wheel with pixel art. Clock uses ⏰, news uses 📰, Frogger uses 🐸. This is the way.
-
-**Impact:** Consistent icon system across all apps. Simpler, more maintainable.
+**Lesson:** Use emoji when they exist. Clock uses ⏰, Standby uses 💤. This is the way.
 
 #### "We want them all to pass!" - Quality Standards
 
-**Context:** Initial tests had failures (wrong colors, bad timeouts, incorrect expectations).
+**Context:** Early tests had failures (wrong colours, bad timeouts, wrong expectations).
 
 **User's expectation:**
 > "ok, this is good but when we run tests we want them all to pass! So is the issue here with the apps, with the testing framework, or because the tests themsevles are not well designed for the apps?"
 
-**Lesson:** Tests aren't decoration - they must actually work! Fix the tests to match reality (actual colors, reasonable timeouts, proper tolerances). Don't accept failing tests as "good enough."
+**Lesson:** Tests aren't decoration. Make them match reality (actual colours, reasonable timeouts, tolerances). A failing test is never "good enough".
 
-**Impact:** 17/17 tests passing. Tests actually catch real bugs now.
+**Impact:** `npm test` and `npx tsc --noEmit` must both pass before every commit.
 
 #### Other Key Guidance
 
@@ -82,61 +91,74 @@ These are **critical moments** where the project lead corrected course. Learn fr
 
 **On Testing:**
 > "is it feasiable to have a fully automated system (i'm thinking like our own little pupeteer or agent)"
-→ Led to complete testing framework with headless mode
+→ Led to the headless testing framework (`pizxel/testing`)
 
 **On Documentation:**
 > "can we now make sure all the documentation is up to date and in sync with the api and current code"
-→ Synchronized 15 documentation files
+→ Docs follow the code. When you change an API, update `docs/API_REFERENCE.md`
 
 ### Design Goals
 
-- ✅ Develop anywhere (Mac/Linux/Windows terminal emulator)
-- ✅ Deploy to Raspberry Pi LED matrices
-- ✅ Responsive to different display sizes (64×64, 128×128, 256×192)
+- ✅ Develop anywhere (Mac/Linux/Windows: browser canvas or terminal)
+- ✅ Deploy to a Raspberry Pi display via the framebuffer
+- ✅ Run as a hosted service (pizxel.uk) without breaking the above
 - ✅ Event-driven architecture (no blocking loops in apps)
-- ✅ Comprehensive testing (catch bugs before deployment)
+- ✅ Automated tests (catch bugs before deployment)
+- ⏳ HUB75 RGB LED matrix panels (driver not written yet)
 
 ---
 
 ## 🚨 Critical API Corrections
 
-### The Great API Mistake of 2025
+### Use the TypeScript API, Not Remembered Names
 
-**WRONG APIs (DO NOT USE):**
-```python
-matrix.pixel(x, y, color)        # ❌ Does not exist!
-matrix.draw_line(...)            # ❌ Does not exist!
-matrix.draw_rect(...)            # ❌ Does not exist!
+**WRONG (Python-era or invented names; none of these exist):**
+```typescript
+matrix.set_pixel(x, y, color)     // ❌ Python name
+matrix.pixel(x, y, color)         // ❌
+matrix.drawLine(...)              // ❌
+matrix.drawRect(...)              // ❌
+matrix.centered_text(...)         // ❌ Python name
+matrix.ellipse(...) / polygon(...) / triangle(...)   // ❌ not ported
+matrix.show()                     // ❌ the framework does this
 ```
 
-**CORRECT APIs:**
-```python
-matrix.set_pixel(x, y, color)    # ✅ Correct
-matrix.line(x1, y1, x2, y2, color)     # ✅ Correct
-matrix.rect(x, y, width, height, color, fill=False)  # ✅ Correct
-matrix.circle(cx, cy, radius, color, fill=False)     # ✅ Correct
-matrix.text(text, x, y, color, bg_color=None, scale=1)  # ✅ Correct
+**CORRECT (`pizxel/core/display-buffer.ts`):**
+```typescript
+matrix.setPixel(x, y, color)                              // ✅
+matrix.getPixel(x, y)                                     // ✅
+matrix.clear() / matrix.fill(color)                       // ✅
+matrix.line(x0, y0, x1, y1, color)                        // ✅
+matrix.rect(x, y, width, height, color, fill = false)     // ✅
+matrix.circle(cx, cy, radius, color, fill = false)        // ✅
+matrix.text(text, x, y, color, bgColor?, scale = 1)       // ✅
+matrix.centeredText(text, y, color, bgColor?)             // ✅
 ```
 
-**Why this matters:** Multiple games were written with wrong API names. Always check `docs/API_REFERENCE.md` before using drawing methods.
+Colours are `RGB` tuples `[r, g, b]` (arrays, not `(r, g, b)`).
+
+**Why this matters:** Several games were written against API names that
+didn't exist. Always check `docs/API_REFERENCE.md` or the source before you use a method.
 
 ### Input System
 
-**Space Bar is ACTION:**
-```python
-# All three work for jump/fire/action:
-if event.key == InputEvent.ACTION:   # ✅ Preferred (semantic)
-if event.key == ' ':                 # ✅ Also works (literal)
-if event.key == 'A':                 # ✅ Also works (letter)
+`event.key` is a string. Compare it with `InputKeys` from `pizxel/types`:
+
+```typescript
+if (event.key === InputKeys.ACTION) { ... }   // ✅ preferred: Space
+if (event.key === " ") { ... }                // ✅ same thing
 ```
 
-**Standard Keys:**
-- `InputEvent.UP`, `DOWN`, `LEFT`, `RIGHT` - Arrow keys
-- `InputEvent.OK` - Enter key
-- `InputEvent.ACTION` - Space bar (for games)
-- `InputEvent.BACK` - Backspace
-- `InputEvent.HOME` - ESC (usually handled by framework)
-- `InputEvent.HELP` - TAB key
+| Constant | Key | Value |
+|---|---|---|
+| `InputKeys.UP/DOWN/LEFT/RIGHT` | Arrows | `"ArrowUp"` … |
+| `InputKeys.OK` | Enter | `"Enter"` |
+| `InputKeys.ACTION` | Space | `" "` |
+| `InputKeys.BACK` | Backspace | `"Backspace"` |
+| `InputKeys.HOME` | ESC (the framework returns to the launcher if the app doesn't handle it) | `"Escape"` |
+| `InputKeys.HELP` | Tab (toggle a `HelpModal`) | `"Tab"` |
+
+Check `event.type === "keydown"` before acting (current drivers only send keydown).
 
 ---
 
@@ -144,108 +166,167 @@ if event.key == 'A':                 # ✅ Also works (letter)
 
 ### Event-Driven Framework
 
-**Apps DO NOT manage their own loops!**
+**Apps DO NOT manage their own loops!** `pizxel/core/app-framework.ts` runs
+the loop (60fps locally, capped by `FPS_CAP` in server mode).
 
-```python
-# ❌ WRONG - App manages own loop
-class MyApp(App):
-    def run(self):
-        while True:  # Don't do this!
-            self.update()
-            matrix.show()
+```typescript
+// ❌ WRONG: the app runs its own loop
+class MyApp implements App {
+  async run() {
+    while (true) {              // Don't do this!
+      this.update();
+      await sleep(16);
+    }
+  }
+}
 ```
 
-```python
-# ✅ CORRECT - Framework manages loop
-class MyApp(App):
-    def on_update(self, delta_time):
-        """Called ~60fps by framework"""
-        self.player_x += self.velocity * delta_time
-        self.dirty = True  # Request re-render
-    
-    def render(self, matrix):
-        """Called when dirty flag is set"""
-        matrix.clear()
-        matrix.rect(self.player_x, self.player_y, 10, 10, (255, 0, 0), fill=True)
-        self.dirty = False  # Clear flag
+```typescript
+// ✅ CORRECT: the framework calls you
+class MyApp implements App {
+  readonly name = "My App";
+  dirty = true;
+
+  onUpdate(deltaTime: number): void {       // deltaTime in SECONDS
+    this.playerX += this.velocity * deltaTime;
+    this.dirty = true;                      // request a re-render
+  }
+
+  render(matrix: DisplayBuffer): void {     // only called when dirty
+    matrix.clear();
+    matrix.rect(Math.floor(this.playerX), this.playerY, 10, 10, [255, 0, 0], true);
+    this.dirty = false;                     // clear the flag
+  }
+  // ...
+}
 ```
 
 ### Dirty Flag Pattern
 
-**Critical for performance:**
-```python
-def on_event(self, event):
-    if event.key == InputEvent.RIGHT:
-        self.player_x += 5
-        self.dirty = True  # ← MUST set this!
-        return True
-    return False
+**Critical for performance, especially on a Pi and with many sessions per server:**
+```typescript
+onEvent(event: InputEvent): boolean {
+  if (event.type === "keydown" && event.key === InputKeys.RIGHT) {
+    this.playerX += 5;
+    this.dirty = true;   // ← MUST set this!
+    return true;
+  }
+  return false;
+}
 
-def render(self, matrix):
-    # Draw everything
-    matrix.clear()
-    matrix.rect(self.player_x, self.player_y, 10, 10, (0, 255, 0), fill=True)
-    self.dirty = False  # ← MUST clear this!
+render(matrix: DisplayBuffer): void {
+  matrix.clear();
+  matrix.rect(this.playerX, this.playerY, 10, 10, [0, 255, 0], true);
+  this.dirty = false;    // ← MUST clear this!
+}
 ```
 
-**Common mistake:** Forgetting to set `self.dirty = True` after state changes → nothing renders!
+`dirty` isn't part of the `App` interface, but the framework reads it every
+frame. Declare it as a public field.
+
+**Common mistake:** forgetting `this.dirty = true` after a state change means nothing renders.
 
 ### App Lifecycle
 
-```python
-class MyApp(App):
-    def __init__(self):
-        super().__init__("My App")
-        self.score = 0
-        self.dirty = True  # Request initial render
-    
-    def on_activate(self):
-        """App becomes foreground"""
-        self.reset_game()
-        self.dirty = True
-    
-    def on_deactivate(self):
-        """App goes to background"""
-        self.save_state()
-    
-    def on_update(self, delta_time):
-        """Called every frame (~60fps) when active"""
-        self.update_physics(delta_time)
-        if self.something_changed:
-            self.dirty = True
-    
-    def on_background_tick(self):
-        """Called ~1/second when inactive"""
-        self.check_for_alerts()
-        if self.timer_expired:
-            self.request_foreground()  # Ask to become active
-    
-    def on_event(self, event):
-        """Handle input"""
-        if event.key == InputEvent.OK:
-            self.fire()
-            self.dirty = True
-            return True  # Event handled
-        return False  # Let framework handle
-    
-    def render(self, matrix):
-        """Draw UI (only when dirty)"""
-        matrix.clear()
-        matrix.text(f"Score: {self.score}", 10, 10, (255, 255, 255))
-        self.dirty = False
+```typescript
+import { App, InputEvent, InputKeys } from "../../types";
+import { DisplayBuffer } from "../../core/display-buffer";
+
+export class MyApp implements App {
+  readonly name = "My App";
+  dirty = true;                     // request the initial render
+  private score = 0;
+
+  onActivate(): void {              // app comes to the foreground (may be async)
+    this.dirty = true;
+  }
+
+  onDeactivate(): void {            // app goes to the background / PiZXel stops
+    // save state here (AppStorage)
+  }
+
+  onUpdate(deltaTime: number): void {   // every frame while active
+    // advance game state; set dirty when something visible changes
+  }
+
+  onBackgroundTick(): void {        // optional: ~1/second while inactive
+    if (this.timerExpired) {
+      (this as any).request_foreground?.("Timer done!");  // attached by the framework
+    }
+  }
+
+  onEvent(event: InputEvent): boolean {
+    if (event.type !== "keydown") return false;
+    if (event.key === InputKeys.OK) {
+      this.score++;
+      this.dirty = true;
+      return true;                  // handled
+    }
+    return false;                   // let the framework handle it (ESC → launcher)
+  }
+
+  render(matrix: DisplayBuffer): void {
+    matrix.clear();
+    matrix.text(`SCORE ${this.score}`, 4, 4, [255, 255, 255]);
+    this.dirty = false;
+  }
+}
 ```
 
-### Entry Point
+If `onUpdate`, `render` or `onEvent` throws, the framework returns to the
+launcher and shows the error there. Don't swallow errors to hide them.
 
-Every app needs this:
-```python
-def run(os_context):
-    """Called by MatrixOS to start app"""
-    app = MyApp()
-    os_context.register_app(app)
-    os_context.switch_to_app(app)
-    os_context.run()  # Starts event loop (blocks until exit)
+### Registering an App: config.json
+
+There's no `run(os_context)` entry point and no manual registration. The
+`AppScanner` finds every folder with a `config.json` in `pizxel/apps/` and in
+the user apps directory (`data/default-user/apps/` locally, `EXTRA_APPS_DIR`
+in server mode):
+
+```json
+{
+  "name": "My App",
+  "version": "1.0.0",
+  "description": "What it does",
+  "author": "You",
+  "icon": "🎮",
+  "main": "my-app.ts",
+  "color": [0, 255, 0],
+  "category": "game",
+  "tier": "optional"
+}
 ```
+
+- `name`, `icon` (an emoji) and `main` are required
+- The scanner uses the exported class named `<Main>App`, the default export, or the first export ending in `App`. The constructor takes no arguments
+- `category: "game"` puts the app in the launcher's Games folder
+- `tier` matters only to the session server: `"core"` (default) is on for every visitor; `"optional"` loads only for sessions that enabled it. Local modes load all apps
+
+### Instances: Local Mode vs Server Mode
+
+`createInstance()` (`pizxel/core/instance.ts`) builds one PiZXel: framework,
+launcher and scanned apps on top of initialised drivers.
+
+- **Local mode** (`pizxel/start.ts`): one instance using the process-wide default context. Data lives in `data/default-user/`.
+- **Server mode** (`pizxel/start-server.ts`, `pizxel/server/`): one instance per visitor session, each with its own drivers, data root and app list, all in one Node process.
+
+Per-instance services (data root, audio, the framework) come from
+`InstanceContext` via `AsyncLocalStorage`: `getInstanceContext()`,
+`getAudio()`, `getAudioInput()`, `getAppFramework()`.
+
+**Rules that keep both modes working:**
+- **No module-level mutable state** in apps or shared code. A global `let highScore` or a cached `getAudio()` result would be shared by every session on the server
+- **Build `AppStorage` inside the lifecycle** (constructor/`onActivate`), not at import time, so it resolves to the right data root
+- **Network access** must check `isNetworkAllowed()` (`core/network.ts`). The server turns it off
+- **Don't assume one display.** Draw through the `matrix` you're given, and don't reach for a driver directly
+
+### Drivers
+
+Display drivers extend `DisplayDriver` (`pizxel/drivers/base/device-driver.ts`),
+and `DeviceManager` picks the highest priority whose `isAvailable()` is true:
+framebuffer (90), canvas (80), terminal (50). Server mode and tests hand
+explicit drivers to `DeviceManager.useDrivers(display, input)`. Add hardware
+support as a new driver; don't change the framework. See `docs/DISPLAY_MODES.md`.
 
 ---
 
@@ -253,208 +334,136 @@ def run(os_context):
 
 ### Philosophy
 
-**Tests are first-class citizens in MatrixOS.** Write tests as you build to catch bugs early.
+**Tests are first-class citizens.** Write them as you build.
 
-### Pure Python Implementation
+### Commands
 
-**Critical decision:** No numpy dependency!
-```python
-# Testing framework uses Python lists, not numpy arrays
-self.buffer = [[(0, 0, 0) for _ in range(width)] for _ in range(height)]
+```bash
+npm test              # tests/instance-test.ts + tests/server-test.ts
+npx tsc --noEmit      # type check (same as npm run typecheck)
+npx tsx tests/my-test.ts   # run one test file
 ```
 
-**Why:** Keep dependencies minimal for limited hardware (Raspberry Pi Zero).
+**Both `npm test` and `npx tsc --noEmit` must pass before you commit.**
+To add a test file to the suite, append it to the `test` script in `package.json`.
 
-### Basic Test Pattern
+### Plain TypeScript Implementation
 
-```python
-from matrixos.testing import TestRunner
+There's no Jest, Mocha or numpy-equivalent. A test is a `.ts` file that
+throws (or `process.exit(1)`s) on failure. The headless display is an
+`RGB[][]`:
 
-def test_my_app():
-    # Start app headless
-    runner = TestRunner("examples.myapp.main", max_duration=10.0)
-    runner.wait(1.0)
-    
-    # Verify rendering
-    assert runner.display.render_count >= 30, "Should render at 30fps"
-    
-    # Find sprite by color
-    player = runner.find_sprite((0, 255, 0), tolerance=10)
-    assert player is not None, "Player should be visible"
-    
-    # Test input
-    initial_x = player[0]
-    runner.inject(InputEvent.RIGHT)
-    runner.wait(0.5)
-    
-    # Verify movement
-    new_player = runner.find_sprite((0, 255, 0), tolerance=10)
-    assert new_player[0] > initial_x, "Player should move right"
-    
-    # Check logs
-    runner.assert_no_errors_logged()
-    
-if __name__ == "__main__":
-    test_my_app()
-    print("✓ Test passed!")
+```typescript
+this.buffer = Array.from({ length: height }, () =>
+  Array.from({ length: width }, () => [0, 0, 0] as RGB)
+);
 ```
+
+### Two Ways to Test
+
+**1. `TestRunner`: one app, headless** (`pizxel/testing`)
+
+```typescript
+import { TestRunner } from "../pizxel/testing";
+import { InputKeys } from "../pizxel/types";
+import { MyApp } from "../pizxel/apps/my-app/my-app";
+
+async function main() {
+  const runner = new TestRunner(10.0);           // max duration, seconds
+  await runner.start(MyApp);
+  await runner.wait(0.5);
+
+  if (runner.display.renderCount < 1) throw new Error("App should render");
+
+  const player = runner.findSprite([0, 255, 0], 10);   // tolerance 10
+  if (!player) throw new Error("Player should be visible");
+
+  runner.inject(InputKeys.RIGHT);
+  await runner.wait(0.2);
+
+  const moved = runner.findSprite([0, 255, 0], 10);
+  if (!moved || moved.x <= player.x) throw new Error("Player should move right");
+
+  runner.stop();
+  console.log("✓ MyApp test passed");
+}
+
+main().catch((e) => { console.error("✗", e.message); process.exit(1); });
+```
+
+⚠️ The `TestRunner` display is a **stub**: it only draws `setPixel`,
+`clear`, `fill` and **filled** `rect`. `line`, `circle`, `text` and
+`centeredText` draw nothing in it. Test with filled shapes, or use approach 2.
+
+**2. Full instance with test drivers** (`tests/instance-test.ts`)
+
+Subclass `DisplayDriver`/`InputDriver`, pass them to
+`DeviceManager.useDrivers()`, and call `createInstance()`. This runs the
+real framework, launcher and `DisplayBuffer`, so every drawing method
+works, as do ESC and app switching. Use this for framework, launcher and
+isolation tests. `tests/server-test.ts` does the same for the session server
+over HTTP/WebSocket.
 
 ### Common Test Pitfalls
 
-**1. Color Tolerance**
-```python
-# ❌ BAD - exact match only
-player = runner.find_sprite((0, 150, 255), tolerance=0)
-
-# ✅ GOOD - handles anti-aliasing
-player = runner.find_sprite((0, 150, 255), tolerance=10)
-```
-
-**2. Render Count Expectations**
-```python
-# ❌ BAD - assumes perfect 60fps
-assert runner.display.render_count == 60
-
-# ✅ GOOD - allows variation
-assert runner.display.render_count >= 30
-```
-
-**3. Test Duration**
-```python
-# ❌ BAD - too short, tests flaky
-runner = TestRunner("examples.myapp.main", max_duration=1.0)
-
-# ✅ GOOD - reasonable timeout
-runner = TestRunner("examples.myapp.main", max_duration=10.0)
-```
-
-**4. Log Reading**
-```python
-# ❌ BAD - since_test_start=True may miss logs
-logs = runner.read_logs(since_test_start=True)
-
-# ✅ GOOD - read all logs (default)
-logs = runner.read_logs()  # or since_test_start=False
-```
+1. **Colour tolerance**: use `findSprite(color, 10)`, not tolerance 0
+2. **Render count**: assert `renderCount >= 1` (or `>= N`), never an exact frame count
+3. **Durations**: give the runner a reasonable `maxDuration` (10 s); a short one makes tests flaky
+4. **Text in TestRunner**: it won't appear (see the stub note above)
+5. **Clean up**: call `runner.stop()` / `instance.stop()`, or the process keeps running
+6. **Isolation**: in instance tests, give each instance its own temp `dataRoot` and remove it afterwards
 
 ### Testing Capabilities
 
-**Display Inspection:**
-- `runner.pixel_at(x, y)` - Get pixel color
-- `runner.count_color(color, tolerance)` - Count matching pixels
-- `runner.find_sprite(color, tolerance)` - Find sprite centroid
-- `runner.display.find_blobs(color, min_size)` - Find connected regions
-- `runner.display.is_changing(frames)` - Detect animation
-- `runner.snapshot(name)` - Visual regression testing
+**Display:** `runner.pixelAt(x, y)`, `runner.countColor(color, tol)`,
+`runner.findSprite(color, tol)`, `runner.display.findBlobs(color, minSize, tol)`,
+`runner.display.renderCount`, `runner.snapshot(name)`
 
-**Input Simulation:**
-- `runner.inject(key)` - Single event
-- `runner.inject_sequence([keys], delay)` - Key sequence
-- `runner.inject_repeat(key, count, delay)` - Hold button
-- `runner.wait(seconds)` - Wait with event loop
-- `runner.wait_until(condition, timeout)` - Wait for condition
+**Input:** `runner.inject(key)`, `runner.injectSequence(keys, delayMs)`,
+`runner.input.injectRepeat(key, count, delayMs)`
 
-**Log Inspection:**
-- `runner.read_logs()` - Get all logs
-- `runner.log_contains(text)` - Search logs
-- `runner.assert_no_errors_logged()` - Check for errors
-- `runner.get_error_logs()` - Get error lines
-- `runner.print_recent_logs(lines)` - Debug failures
+**Timing:** `await runner.wait(seconds)`, `await runner.waitUntil(cond, timeoutSeconds)`
+
+**Assertions:** `assertPixelColor`, `assertColorCount`, `assertSpriteExists`,
+`assertSpriteMoved`, `assertRenderCount`, `assertTrue`, `assertFalse`,
+`assertEqual`, `assertNotNull`
 
 ---
 
-## 📝 Logging System
+## 📝 Logging
 
-### Usage
+There's no logger module and no `settings/logs/` directory (those were
+MatrixOS). PiZXel logs to the console:
 
-```python
-from matrixos.logger import get_logger
+- Use `console.log` / `console.error` with a `[Tag]` prefix, e.g. `console.log("[Snake] Game over")`
+- For per-frame or per-key diagnostics, use `debugLog()` from `pizxel/core/debug.ts`. It prints only when `PIZXEL_DEBUG` is set, so it doesn't flood output or slow a Pi
+- App crashes are logged by the framework as `[AppFramework] App "<name>" crashed:`
 
-class MyApp(App):
-    def __init__(self):
-        super().__init__("My App")
-        self.logger = get_logger("myapp")  # lowercase name
-    
-    def on_activate(self):
-        self.logger.info("App activated")
-        self.logger.debug(f"Player position: {self.player_x}, {self.player_y}")
-    
-    def on_event(self, event):
-        if event.key == InputEvent.ACTION:
-            self.logger.info("Player fired weapon")
-            try:
-                self.fire_weapon()
-            except Exception as e:
-                self.logger.error(f"Fire failed: {e}")
+```bash
+PIZXEL_DEBUG=1 npm run start:canvas
 ```
 
-**Logs location:** `settings/logs/myapp.log`
-
-### Log Levels
-
-- `DEBUG` - Detailed diagnostics (verbose)
-- `INFO` - General information (normal operations)
-- `WARNING` - Something unexpected but handled
-- `ERROR` - Error that prevented operation
-
-**In tests:**
-```python
-# Check logs after test
-runner.assert_no_errors_logged()
-
-# Search for specific events
-assert runner.log_contains("Player fired weapon")
-
-# Debug test failures
-if test_failed:
-    runner.print_recent_logs(lines=30)
-```
+In terminal mode the display takes over the screen, so debug with canvas
+mode (the logs stay readable in the terminal).
 
 ---
 
 ## 🎨 Graphics Best Practices
 
-### Color Format
-
-```python
-# RGB tuples (0-255)
-RED = (255, 0, 0)
-GREEN = (0, 255, 0)
-BLUE = (0, 0, 255)
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-
-# For monochrome displays
-matrix.set_pixel(x, y, True)   # On
-matrix.set_pixel(x, y, False)  # Off
-```
-
-### Coordinate System
-
-- Origin: `(0, 0)` is **top-left**
-- X increases rightward
-- Y increases downward
-- Drawing outside bounds is safe (automatically clipped)
-
-### Text Rendering
-
-```python
-# ZX Spectrum 8×8 font (built-in)
-matrix.text("HELLO", 10, 20, (255, 255, 255))
-
-# Centered text
-matrix.centered_text("GAME OVER", y=64, color=(255, 0, 0))
-
-# Scaled text
-matrix.text("BIG", 10, 10, (0, 255, 0), scale=2)  # 16×16 chars
-```
+- **Resolution**: 256×192. Use `matrix.getWidth()` / `getHeight()` rather than hard-coding where you can
+- **Coordinates**: `(0, 0)` is top-left; x increases right, y increases down; out-of-bounds drawing is clipped
+- **Integers**: pass whole numbers (`Math.floor`) for positions computed from floats
+- **Text**: 8×8 ZX font, `8 * scale` px per character. `centeredText` for titles; `text(..., undefined, 2)` for big text
+- **Nested UI**: use `pushClipRegion`/`popClipRegion` and `pushTransform`/`popTransform` rather than manual offsets
+- **Help**: use `HelpModal.create([...])` on Tab, as `pizxel/apps/clock/clock.ts` does
 
 ### Performance Tips
 
-1. **Don't call `matrix.show()`** - Framework handles this automatically
-2. **Use dirty flag** - Only render when state changes
-3. **Clear once per frame** - `matrix.clear()` at start of render()
-4. **Batch drawing** - Draw everything in render(), not in on_update()
+1. **Don't call `show()`**: the framework does
+2. **Use the dirty flag**: only render when state changes. A clock only needs to redraw once a second
+3. **Clear once per render**: `matrix.clear()` / `fill()` at the start of `render()`
+4. **Draw only in `render()`**: `onUpdate()` changes state, `render()` draws it
+5. **Don't allocate per pixel**: reuse colour tuples (`private readonly red: RGB = [255, 0, 0]`)
 
 ---
 
@@ -462,522 +471,283 @@ matrix.text("BIG", 10, 10, (0, 255, 0), scale=2)  # 16×16 chars
 
 ### Bug: App Doesn't Render
 
-**Symptoms:** Black screen, nothing draws
+**Causes:** no `dirty = true` initially or after a change; `dirty` never
+cleared (renders every frame, which is slow but visible); wrong method name
+(`set_pixel`, `drawRect`); the class isn't found by the scanner (check the
+export name and `config.json` `main`).
 
-**Causes:**
-1. Forgot to set `self.dirty = True` after state change
-2. Using wrong API names (matrix.pixel instead of matrix.set_pixel)
-3. Forgot to clear dirty flag in render()
-4. Not setting initial dirty flag in `__init__`
+### Bug: App Doesn't Appear in the Launcher
 
-**Fix:**
-```python
-def __init__(self):
-    super().__init__("My App")
-    self.dirty = True  # ← Must set initial render
-
-def on_event(self, event):
-    if event.key == InputEvent.RIGHT:
-        self.x += 1
-        self.dirty = True  # ← Must set after changes
-        return True
-    return False
-
-def render(self, matrix):
-    matrix.clear()
-    matrix.set_pixel(self.x, self.y, (255, 0, 0))  # ← Correct API
-    self.dirty = False  # ← Must clear
-```
+**Causes:** `config.json` is missing `name`, `icon` or `main`; the file named
+in `main` doesn't exist; no exported class with `render` and `onEvent`; the
+constructor needs arguments; in server mode, `"tier": "optional"` and not
+enabled for that session. Startup logs `[AppScanner] Loaded: ...` for each app.
 
 ### Bug: Input Not Working
 
-**Symptoms:** Keys do nothing
+**Causes:** not returning `true` when handled; comparing with the wrong
+string (use `InputKeys`); not checking `event.type === "keydown"`; forgot
+`dirty = true`.
 
-**Causes:**
-1. Not returning `True` when handling event
-2. Using wrong InputEvent constants
-3. Forgetting to set dirty flag after handling
+### Bug: Works Locally, Breaks on the Server (or Leaks Between Sessions)
 
-**Fix:**
-```python
-def on_event(self, event):
-    if event.key == InputEvent.ACTION:  # ← Correct constant
-        self.jump()
-        self.dirty = True  # ← Set dirty
-        return True  # ← MUST return True!
-    return False
-```
+**Causes:** module-level state; `AppStorage` created at import time;
+caching `getAudio()`; network calls without `isNetworkAllowed()`. See
+**Instances** above.
 
 ### Bug: Test Can't Find Sprite
 
-**Symptoms:** `find_sprite()` returns None
-
-**Causes:**
-1. Using exact color (tolerance=0)
-2. Wrong color values
-3. Not waiting for render
-
-**Fix:**
-```python
-# Check what colors actually exist
-runner.wait(0.5)
-print(f"Center pixel: {runner.pixel_at(64, 64)}")
-
-# Use tolerance
-player = runner.find_sprite((0, 150, 255), tolerance=10)  # ← Add tolerance
-
-# Verify app is rendering
-assert runner.display.render_count > 0, "App not rendering"
-```
-
-### Bug: Logs Not Found in Tests
-
-**Symptoms:** `read_logs()` returns empty string
-
-**Causes:**
-1. Using `since_test_start=True` (filters out app loading logs)
-2. Wrong app name
-
-**Fix:**
-```python
-# Read all logs (default)
-logs = runner.read_logs()
-
-# Or explicitly
-logs = runner.read_logs(since_test_start=False)
-
-# Check if logs exist
-if not logs:
-    runner.print_recent_logs(lines=50)
-```
+**Causes:** tolerance 0; wrong colour; drawn with `circle`/`text`/outline
+`rect` (the TestRunner stub doesn't draw these); didn't wait for a render.
 
 ---
 
 ## 📁 Project Structure
 
 ```
-matrixos/
-├── matrixos/                    # Core OS modules
-│   ├── app_framework.py         # Event loop, app lifecycle
-│   ├── led_api.py               # Matrix drawing API
-│   ├── display.py               # Terminal emulator + hardware
-│   ├── font.py                  # ZX Spectrum 8×8 font
-│   ├── graphics.py              # Drawing primitives
-│   ├── input.py                 # Keyboard input
-│   ├── layout.py                # Layout helpers
-│   ├── config.py                # Configuration
-│   └── testing/                 # Testing framework
-│       ├── display_adapter.py   # Headless display (pure Python!)
-│       ├── input_simulator.py   # Event injection
-│       ├── assertions.py        # Test assertions
-│       └── runner.py            # TestRunner (log integration)
-├── apps/                        # User apps (empty - examples/ for now)
-├── examples/                    # Example apps
-│   ├── frogger/                 # Frogger game
-│   ├── platformer/              # Platformer game
-│   ├── space_invaders/          # Space Invaders
-│   ├── pacman/                  # Pac-Man
-│   ├── clock/                   # Clock app
-│   └── news/                    # News reader
-├── tests/                       # Automated tests
-│   ├── smoke_test.py            # Quick sanity (2 tests)
-│   ├── advanced_test.py         # Feature tests (8 tests)
-│   └── test_log_integration.py  # Log tests (7 tests)
-├── docs/                        # Documentation
-│   ├── API_REFERENCE.md         # Complete API (THE SOURCE OF TRUTH)
-│   ├── TESTING.md               # Testing guide
-│   ├── FRAMEWORK.md             # Architecture
-│   ├── HARDWARE.md              # Build guide
-│   └── ...
-├── start.py                     # MatrixOS launcher
-├── requirements.txt             # Dependencies (Pillow only!)
-└── AGENTS.md                    # This file
+pizxel/                           # repo root
+├── pizxel/
+│   ├── start.ts                  # Local entry (npm start / start:canvas / start:fb / start:term)
+│   ├── start-server.ts           # Session server entry (npm run start:server)
+│   ├── standby-manager.ts        # Idle/scheduled screensaver
+│   ├── types/index.ts            # App, InputEvent, InputKeys, RGB, driver interfaces
+│   ├── core/
+│   │   ├── app-framework.ts      # Event loop, lifecycle, dirty-flag rendering, ESC, crash recovery
+│   │   ├── display-buffer.ts     # Drawing API (THE `matrix`)
+│   │   ├── app-scanner.ts        # config.json discovery, AppConfig (incl. tier)
+│   │   ├── instance.ts           # createInstance()
+│   │   ├── instance-context.ts   # Per-instance context (AsyncLocalStorage)
+│   │   ├── device-manager.ts     # Driver selection
+│   │   ├── notification-manager.ts
+│   │   ├── font.ts               # ZX Spectrum 8×8 font
+│   │   ├── network.ts            # isNetworkAllowed()
+│   │   ├── debug.ts              # debugLog() / PIZXEL_DEBUG
+│   │   └── app-storage.ts        # Older per-key storage (used by ScoreManager)
+│   ├── apps/
+│   │   ├── launcher.ts           # Launcher (always loaded, not scanned)
+│   │   ├── clock/                # ⏰ config.json + clock.ts, the reference example
+│   │   └── standby/              # 💤 config.json + standby.ts
+│   ├── drivers/
+│   │   ├── base/device-driver.ts # DisplayDriver / InputDriver base classes
+│   │   ├── display/              # framebuffer-display, canvas-display-driver, terminal-display
+│   │   ├── input/                # keyboard-input, key-map
+│   │   └── audio/                # canvas/web audio output, microphone input
+│   ├── display/                  # Canvas HTTP + Socket.IO server
+│   ├── server/                   # Session server: server, session, session-manager, session-drivers
+│   ├── ui/                       # Widgets, layouts, HelpModal, OnScreenKeyboard…
+│   ├── game/                     # Sprite, collision, physics, Score/Lives/Timer…
+│   ├── storage/                  # AppStorage (use this one)
+│   ├── audio/                    # Audio API, Sounds
+│   ├── lib/                      # Emoji spritesheet + loader
+│   └── testing/                  # TestRunner, HeadlessDisplay, InputSimulator, Assertions
+├── tests/                        # instance-test.ts, server-test.ts (npm test)
+├── docs/
+│   ├── API_REFERENCE.md          # THE SOURCE OF TRUTH for APIs
+│   ├── DISPLAY_MODES.md          # Drivers and troubleshooting
+│   └── session-api.md            # Session server HTTP/WebSocket API
+├── data/                         # Runtime data + user apps (git-ignored)
+├── matrixos-archive/             # Old Python version, reference only
+├── Dockerfile                    # Session server image
+├── package.json
+└── AGENTS.md                     # This file
 ```
 
 ---
 
 ## 📚 Essential Reading
 
-**Before coding, READ THESE:**
+**Before coding, read these:**
 
-1. **[docs/API_REFERENCE.md](docs/API_REFERENCE.md)** ⭐
-   - THE authoritative source for all APIs
-   - Drawing methods, input constants, testing APIs
-   - **Check this FIRST before using any method!**
-
-2. **[docs/FRAMEWORK.md](docs/FRAMEWORK.md)**
-   - Architecture and design patterns
-   - Event-driven model explained
-   - App lifecycle details
-
-3. **[docs/TESTING.md](docs/TESTING.md)**
-   - Complete testing guide
-   - Common patterns and examples
-   - Troubleshooting guide
-
-4. **[README.md](README.md)**
-   - Quick start and overview
-   - Installation instructions
-   - Project philosophy
+1. **[docs/API_REFERENCE.md](docs/API_REFERENCE.md)** ⭐: every API apps use. **Check it before using any method!**
+2. **[pizxel/types/index.ts](pizxel/types/index.ts)**: the `App` interface and `InputKeys`
+3. **[pizxel/apps/clock/](pizxel/apps/clock/)**: a complete, idiomatic app
+4. **[docs/DISPLAY_MODES.md](docs/DISPLAY_MODES.md)**: drivers and hardware
+5. **[docs/session-api.md](docs/session-api.md)**: only if you're touching server mode
+6. **[README.md](README.md)**: quick start and overview
 
 ---
 
 ## 🔍 Debugging Workflow
 
-### 1. Check the Logs
-
-```bash
-# App logs
-tail -f settings/logs/myapp.log
-
-# Framework logs
-tail -f /tmp/matrixos_debug.log
-```
-
-### 2. Run Tests
-
-```bash
-# Quick check
-python3 tests/smoke_test.py
-
-# Comprehensive
-python3 tests/advanced_test.py
-
-# All tests
-python3 tests/smoke_test.py && \
-python3 tests/advanced_test.py && \
-python3 tests/test_log_integration.py
-```
-
-### 3. Test Your App
-
-```python
-from matrixos.testing import TestRunner
-
-# Quick verification
-runner = TestRunner("examples.myapp.main", max_duration=10.0)
-runner.wait(2.0)
-
-print(f"Renders: {runner.display.render_count}")
-print(f"Errors: {runner.get_error_logs()}")
-
-# Check what's on screen
-for y in range(0, 128, 10):
-    for x in range(0, 128, 10):
-        print(f"({x},{y}): {runner.pixel_at(x, y)}")
-```
-
-### 4. Verify API Usage
-
-```bash
-# Search for wrong APIs in your code
-grep -r "matrix\.pixel(" examples/myapp/
-grep -r "matrix\.draw_" examples/myapp/
-
-# Should find zero matches!
-```
+1. **Run it in the browser**: `npm run start:canvas`, open http://localhost:3001, and watch the terminal output
+2. **Turn on debug logs**: `PIZXEL_DEBUG=1 npm run start:canvas`
+3. **Type check**: `npx tsc --noEmit` catches wrong method names and signatures before runtime
+4. **Run the tests**: `npm test`
+5. **Test the app headless** with `TestRunner` (see above)
+6. **Check for Python-era API names**:
+   ```bash
+   grep -rnE "set_pixel|centered_text|drawRect|drawLine|matrix\.pixel\(" pizxel/
+   ```
+   It should find nothing.
 
 ---
 
 ## 💡 Development Tips
 
 ### When Adding New Features
-
-1. **Write test first** - TDD catches bugs early
-2. **Check API_REFERENCE.md** - Don't guess method names
-3. **Add logging** - Help future debugging
-4. **Update docs** - Keep everything in sync
-5. **Run all tests** - Ensure no regressions
+1. **Write the test first**
+2. **Check API_REFERENCE.md**. Don't guess method names
+3. **Keep local mode working.** Server mode is an addition
+4. **Log usefully** (`[Tag]` prefixes, `debugLog` for noisy output)
+5. **Update the docs** (README, API_REFERENCE, this file)
+6. **Run `npm test` and `npx tsc --noEmit`**
 
 ### When Fixing Bugs
-
-1. **Reproduce in test** - Write failing test first
-2. **Check logs** - Often shows root cause
-3. **Verify fix** - Test should pass after fix
-4. **Add regression test** - Prevent bug from returning
+1. Reproduce it in a test
+2. Read the console output: crashes are logged with the app name
+3. Fix it, confirm the test passes, and keep the test
 
 ### When Refactoring
-
-1. **Run tests before** - Establish baseline
-2. **Make small changes** - Easy to identify breaks
-3. **Run tests after each change** - Catch issues immediately
-4. **Update docs** - Keep everything current
+1. Run the tests first to establish a baseline
+2. Make small changes and run the tests after each one
+3. Extend existing seams (drivers, `createInstance` options, context) instead of redesigning
 
 ---
 
 ## 🎯 Quick Reference
 
-### Most Used APIs
+```typescript
+// Drawing (matrix: DisplayBuffer)
+matrix.clear();                  matrix.fill([0, 0, 32]);
+matrix.setPixel(x, y, color);    matrix.getPixel(x, y);
+matrix.line(x0, y0, x1, y1, color);
+matrix.rect(x, y, w, h, color, fill?);
+matrix.circle(cx, cy, r, color, fill?);
+matrix.text(str, x, y, color, bgColor?, scale?);
+matrix.centeredText(str, y, color);
 
-```python
-# Drawing
-matrix.set_pixel(x, y, color)
-matrix.clear()
-matrix.line(x1, y1, x2, y2, color)
-matrix.rect(x, y, w, h, color, fill=False)
-matrix.circle(cx, cy, radius, color, fill=False)
-matrix.text(text, x, y, color)
+// Input
+event.type === "keydown"
+event.key === InputKeys.UP / DOWN / LEFT / RIGHT / OK / ACTION / BACK / HELP
 
-# Input
-event.key == InputEvent.UP / DOWN / LEFT / RIGHT
-event.key == InputEvent.OK / ACTION / BACK
+// Lifecycle
+dirty = true              // request render
+onActivate()              // foreground
+onDeactivate()            // background
+onUpdate(dt)              // every frame, dt in seconds
+onEvent(event) → boolean  // true = handled
+render(matrix)            // draw, then dirty = false
+onBackgroundTick()        // optional, ~1/s while inactive
 
-# App Lifecycle
-self.dirty = True  # Request render
-on_activate()      # App becomes active
-on_update(dt)      # Every frame (~60fps)
-render(matrix)     # Draw UI
-on_event(event)    # Handle input
+// Services
+new AppStorage("my-app")         // from "../../storage"
+getAudio()?.play(Sounds.COIN)    // from "../../game"
+HelpModal.create([...])          // from "../../ui"
 
-# Testing
-runner = TestRunner("examples.myapp.main")
-runner.inject(InputEvent.ACTION)
-runner.wait(1.0)
-runner.find_sprite(color, tolerance=10)
-runner.assert_no_errors_logged()
+// Testing
+const runner = new TestRunner(10);
+await runner.start(MyApp);
+runner.inject(InputKeys.ACTION);
+await runner.wait(0.5);
+runner.findSprite([0, 255, 0], 10);
 ```
 
-### File You'll Edit Most
+### Files You'll Edit Most
 
-- `examples/yourapp/main.py` - Your app code
-- `examples/yourapp/config.json` - App metadata
-- `examples/yourapp/icon.json` - App icon (use `{"emoji": "🎮"}` format!)
-- `tests/test_yourapp.py` - Your tests
+- `pizxel/apps/<your-app>/config.json`: metadata and emoji icon
+- `pizxel/apps/<your-app>/<your-app>.ts`: the app class
+- `tests/<your-app>-test.ts`: its test (add it to `npm test`)
 
 ---
 
 ## 🚀 Getting Started Checklist
 
-**For new AI agents working on MatrixOS:**
-
 - [ ] Read this entire document
 - [ ] Read [docs/API_REFERENCE.md](docs/API_REFERENCE.md)
-- [ ] Run existing tests to verify setup
-- [ ] Review an example app (start with `examples/clock/`)
-- [ ] Understand event-driven architecture (no blocking loops!)
-- [ ] Remember: It's `set_pixel`, not `pixel`!
-- [ ] Remember: Use `{"emoji": "🎮"}` for icons when possible
-- [ ] Remember: Always check logs with `runner.assert_no_errors_logged()`
-- [ ] Remember: Pure Python preferred (no numpy for limited hardware)
+- [ ] `npm ci`, then `npm test` and `npx tsc --noEmit` to verify your setup
+- [ ] Read `pizxel/apps/clock/` (config.json + clock.ts)
+- [ ] Understand the event-driven model (no blocking loops!)
+- [ ] Remember: `setPixel`, `centeredText` (camelCase, TypeScript)
+- [ ] Remember: `"icon": "🎮"` (emoji, not pixel art)
+- [ ] Remember: local mode and the Pi must keep working; server mode is an addition
 
 ---
 
 ## ⚠️ Common AI Assistant Pitfalls
 
-### Things Inexperienced AIs Often Get Wrong
-
 **1. Suggesting Dependencies Without Checking**
-- ❌ "Let's use numpy for array handling"
-- ❌ "We should add pygame for collision detection"
-- ❌ "Install opencv for image processing"
-- ✅ **ALWAYS ASK**: "Is this dependency absolutely necessary? Can we do it in pure Python?"
-- Remember: Raspberry Pi Zero has limited resources
+- ❌ "Let's add lodash / a game engine / an image library"
+- ✅ **ALWAYS ASK**: "Is this dependency absolutely necessary? Can we do it in plain TypeScript? Will it install on a Pi?"
 
-**2. Using Wrong API Names**
-- ❌ `matrix.pixel(x, y, color)` - Doesn't exist!
-- ❌ `matrix.draw_line()` - Doesn't exist!
-- ❌ `matrix.draw_rect()` - Doesn't exist!
-- ✅ **ALWAYS CHECK** `docs/API_REFERENCE.md` before suggesting ANY matrix method
-- This bug happened multiple times - don't repeat it!
+**2. Using Wrong or Python-Era API Names**
+- ❌ `matrix.set_pixel`, `matrix.pixel`, `matrix.drawRect`, `matrix.show()`
+- ❌ `from matrixos.app_framework import App`, `def run(os_context)`
+- ✅ **CHECK** `docs/API_REFERENCE.md`; let `npx tsc --noEmit` catch mistakes
 
-**3. Creating Pixel Art When Emoji Exists**
-- ❌ Spending time creating detailed pixel art icons
-- ❌ Writing complex icon generators for common symbols
-- ✅ **USE EMOJI FIRST**: `{"emoji": "�"}` is better than 2485 bytes of pixel data
-- Only create pixel art if no suitable emoji exists
+**3. Creating Pixel Art When an Emoji Exists**
+- ✅ `"icon": "🐸"` beats 2485 bytes of pixel data
 
-**4. Suggesting Blocking Loops in Apps**
-- ❌ `while True:` loops in app code
-- ❌ `time.sleep()` in apps
-- ❌ Manual event polling
-- ✅ **USE LIFECYCLE METHODS**: `on_update()`, `on_event()`, `render()`
-- Framework handles the loop - apps just respond to events
+**4. Blocking Loops in Apps**
+- ❌ `while (true)`, busy-waits, synchronous sleeps
+- ✅ Use `onUpdate()`, `onEvent()`, `render()`
 
 **5. Forgetting the Dirty Flag**
-- ❌ Changing state without setting `self.dirty = True`
-- ❌ Not clearing `self.dirty = False` in render()
-- ✅ **EVERY STATE CHANGE** must set dirty flag
-- This is the #1 cause of "nothing renders" bugs
+- ✅ Every visible state change sets `this.dirty = true`; `render()` ends with `this.dirty = false`
 
-**6. Writing Tests That Don't Actually Test Reality**
-- ❌ Expecting exactly 60 renders per second
-- ❌ Using tolerance=0 for color matching (anti-aliasing exists!)
-- ❌ Too-short timeouts (max_duration=1.0)
-- ✅ **USE REALISTIC EXPECTATIONS**: `>= 30` renders, `tolerance=10`, `max_duration=10.0`
+**6. Tests That Don't Test Reality**
+- ❌ Exact frame counts, tolerance 0, tiny timeouts, looking for `text()` output in the `TestRunner` stub
+- ✅ `>= 1` renders, tolerance 10, `maxDuration` 10 s, filled shapes or a full-instance test
 
-**7. Not Checking Logs**
-- ❌ Ignoring log output when tests fail
-- ❌ Not using `runner.assert_no_errors_logged()`
-- ❌ Missing error messages in logs
-- ✅ **ALWAYS CHECK LOGS**: They tell you exactly what went wrong
+**7. Ignoring the Console**
+- ✅ Crashes, scanner failures and driver selection are all logged. Read them
 
 **8. Assuming APIs Work Like Other Frameworks**
-- ❌ "In pygame you do X, so here..."
-- ❌ "This is how React works, so..."
-- ✅ **READ THE DOCS FIRST**: MatrixOS has its own patterns
-- Don't assume - verify!
+- ❌ "In pygame / React / Phaser you do X, so…"
+- ✅ PiZXel has its own patterns. Read the docs and `pizxel/types`
 
-**9. Over-Engineering Simple Solutions**
-- ❌ Creating complex state machines for simple flags
-- ❌ Adding abstraction layers unnecessarily
-- ❌ Using design patterns for 10-line apps
-- ✅ **KEEP IT SIMPLE**: If it works and is readable, ship it
+**9. Over-Engineering**
+- ✅ If it works and it's readable, ship it
 
-**10. Not Running Tests After Changes**
-- ❌ Making changes without verifying
-- ❌ Assuming "it should work"
-- ❌ Breaking existing functionality
-- ✅ **ALWAYS RUN TESTS**: `python3 tests/smoke_test.py` before committing
+**10. Redesigning Instead of Extending**
+- ❌ Rewriting `start.ts`, the framework or drivers to suit server mode
+- ❌ Changes that only work when `npm run start:server` is running
+- ✅ Add options, drivers or context fields; check `npm start` and `--fb` still behave the same
+
+**11. Not Running Tests After Changes**
+- ✅ `npm test && npx tsc --noEmit` before every commit
 
 ### Pre-Change Verification Checklist
 
-Before suggesting ANY code change:
-
 ```markdown
-- [ ] Have I read AGENTS.md?
-- [ ] Have I checked API_REFERENCE.md for correct method names?
-- [ ] Am I suggesting pure Python (no unnecessary dependencies)?
-- [ ] Does this follow the event-driven pattern (no blocking loops)?
-- [ ] Did I remember to set the dirty flag after state changes?
-- [ ] Will this work on Raspberry Pi Zero (limited resources)?
-- [ ] Should I use an emoji instead of creating pixel art?
-- [ ] Have I included proper logging for debugging?
-- [ ] Does this need a test? (Hint: probably yes)
-- [ ] Will existing tests still pass after this change?
+- [ ] Have I read AGENTS.md and checked API_REFERENCE.md for method names?
+- [ ] Is this plain TypeScript with no unnecessary dependencies?
+- [ ] Does it follow the event-driven pattern (no blocking loops)?
+- [ ] Is the dirty flag set after state changes and cleared in render()?
+- [ ] Will it run on a Raspberry Pi (limited CPU/RAM)?
+- [ ] Should the icon be an emoji?
+- [ ] Is there useful logging (debugLog for noisy output)?
+- [ ] Is it safe with many instances in one process (no module-level state)?
+- [ ] Do local modes (canvas, terminal, framebuffer) still work unchanged?
+- [ ] Does it need a test? (Probably yes)
+- [ ] Do `npm test` and `npx tsc --noEmit` pass?
 ```
-
-### When in Doubt
-
-1. **Check the docs** - `API_REFERENCE.md` is the source of truth
-2. **Look at examples** - See how existing apps do it
-3. **Run the tests** - They show what actually works
-4. **Read the logs** - They tell you what went wrong
-5. **Ask yourself** - "Would this work on a Raspberry Pi Zero?"
-
----
-
-## �📞 Getting Help
-
-**Documentation:**
-- `docs/API_REFERENCE.md` - API methods and signatures (THE SOURCE OF TRUTH)
-- `docs/TESTING.md` - Testing guide and examples
-- `docs/FRAMEWORK.md` - Architecture details
-- `docs/LOGGING.md` - Logging system
-
-**Examples:**
-- `examples/*/main.py` - Working app code
-- `tests/*.py` - Working test code
-
-**Debugging:**
-- Check `settings/logs/` for app logs
-- Check `/tmp/matrixos_debug.log` for framework logs
-- Run tests to verify behavior
-- Use TestRunner to inspect display state
 
 ---
 
 ## 🎓 Lessons Learned
 
-### Key Insights from Development
-
-1. **API names matter** - Multiple bugs from wrong method names (pixel vs set_pixel)
-2. **Testing saves time** - Bugs caught in tests are 10× faster to fix than in hardware
-3. **Pure Python works** - Don't need numpy for testing, lists are fine
-4. **Logs are invaluable** - Integration with tests helps debug failures
-5. **Dirty flag is critical** - Most rendering bugs are forgot to set dirty
-6. **Tolerance is necessary** - Anti-aliasing means exact color matches fail
-7. **Emoji are powerful** - Using real emoji as icons is simpler than pixel art
-8. **Event-driven is cleaner** - Apps don't manage loops, framework does
-
-### What Works Well
-
-- ✅ Event-driven architecture (apps are clean and focused)
-- ✅ Comprehensive testing (17/17 tests passing)
-- ✅ Pure Python approach (minimal dependencies)
-- ✅ Emoji icon system (modern + simple)
-- ✅ Terminal emulator (develop anywhere)
-- ✅ Logging integration (debugging in tests)
+1. **API names matter.** Wrong method names caused multiple bugs. TypeScript now catches most of them, so run `tsc`
+2. **Testing saves time.** Bugs caught in tests are far cheaper than bugs found on hardware
+3. **Plain code works.** Arrays of tuples are fine for 256×192
+4. **The dirty flag is critical.** Most rendering bugs come from forgetting to set it
+5. **Tolerance is necessary.** Exact colour matches are brittle
+6. **Emoji are powerful.** Real emoji icons are simpler than pixel art
+7. **Event-driven is cleaner.** Apps don't manage loops; the framework does
+8. **Extend, don't redesign.** Running many PiZXels per process came from adding an instance context and drivers, not rewriting the OS, so the Pi build kept working throughout
 
 ### What to Watch Out For
 
-- ⚠️ API method names (always check docs first!)
-- ⚠️ Dirty flag management (easy to forget)
-- ⚠️ Event return values (must return True when handled)
-- ⚠️ Color tolerance (exact matches often fail)
-- ⚠️ Test timeouts (allow reasonable duration)
-- ⚠️ Log filtering (since_test_start can exclude important logs)
-
----
-
-## 🤖 For Claude Users: Context Management
-
-**Claude-Specific Tips** for working on MatrixOS effectively:
-
-### Essential Context to Load
-
-When starting a new conversation:
-
-1. **This file (AGENTS.md)** - Load this first! (~900 lines, core knowledge)
-2. **[docs/API_REFERENCE.md](docs/API_REFERENCE.md)** - Complete API reference
-3. **Current task files** - Specific files you're working on
-
-### Using MCP Tools Effectively
-
-```bash
-# List directory structure first
-list_dir /path/to/led-matrix-project
-
-# Search before reading
-file_search "**/*.py"
-grep_search "set_pixel" --includePattern "examples/**/*.py"
-
-# Read targeted sections
-read_file path/to/file.py startLine=1 endLine=100
-
-# Find all usages before changing APIs
-list_code_usages "set_pixel"
-
-# Check for errors
-get_errors
-```
-
-### Pre-Flight Checklist for Claude
-
-Before suggesting ANY code change:
-
-- [ ] Have I checked `API_REFERENCE.md` for correct method names?
-- [ ] Am I suggesting pure Python (no numpy, pygame, opencv, etc.)?
-- [ ] Does this follow event-driven pattern (no `while True:` loops)?
-- [ ] Did I remember the dirty flag (`self.dirty = True`)?
-- [ ] Should I use an emoji (`{"emoji": "🎮"}`) instead of pixel art?
-- [ ] Have I verified this would work on Raspberry Pi Zero?
-- [ ] Will existing tests still pass?
-
-### Common Claude Mistakes to Avoid
-
-1. **Assuming APIs from other frameworks** - pygame/pygame-zero patterns don't apply
-2. **Suggesting complex libraries** - Remember: Pure Python, limited hardware
-3. **Creating elaborate pixel art** - Use emoji first! (`{"emoji": "🐸"}`)
-4. **Forgetting to run tests** - Always verify changes with tests
-5. **Not checking logs** - `runner.assert_no_errors_logged()` catches issues
+- ⚠️ Method names (check the docs, run `tsc`)
+- ⚠️ Dirty flag management
+- ⚠️ `onEvent` return values
+- ⚠️ Module-level state (breaks session isolation)
+- ⚠️ The `TestRunner` drawing stub
+- ⚠️ Two `AppStorage` classes: use `pizxel/storage`, not `core/app-storage`
 
 ---
 
 ## 🏁 Final Words
 
-MatrixOS is **production-ready** with:
-- ✅ 17/17 tests passing
-- ✅ Complete API documentation
-- ✅ Comprehensive testing framework
-- ✅ Multiple working example apps
-- ✅ Pure Python (minimal dependencies)
-- ✅ Modern engineering with retro aesthetic
-
-**Remember:** When in doubt, check `docs/API_REFERENCE.md`. It's the source of truth!
+**When in doubt, check `docs/API_REFERENCE.md` and the TypeScript source. The code is the source of truth, and the docs should follow it.**
 
 **Happy coding!** 🎮✨
-
----
-
-*Last updated: November 4, 2025*  
-*For questions or clarifications, see documentation in `docs/` directory*

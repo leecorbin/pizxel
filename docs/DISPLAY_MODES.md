@@ -365,6 +365,6 @@ This ensures pixels are rendered as perfect squares without blur or distortion.
 
 ## See Also
 
-- [RUNNING_MODES.md](./RUNNING_MODES.md) - Original mode documentation
-- [Hardware Setup](./docs/HARDWARE.md) - Physical display connection guide
-- [API Reference](./docs/API_REFERENCE.md) - Full driver API documentation
+- [API Reference](./API_REFERENCE.md) - Driver base classes and `DeviceManager`
+- [Session API](./session-api.md) - Server mode (`npm run start:server`), which uses its own WebSocket display and input drivers instead of the three above
+- [Hardware build guide (MatrixOS era)](../matrixos-archive/docs/HARDWARE.md) - LED matrix wiring notes from the Python version; the HUB75 driver hasn't been ported yet

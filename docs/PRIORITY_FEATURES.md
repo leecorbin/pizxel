@@ -1,5 +1,19 @@
 # PiZXel Priority Features - Implementation Plan
 
+> **Historical plan (November 2025).** Kept for its design notes; the file
+> paths and APIs below are the *proposed* ones, not what was built. Where
+> things actually live now:
+>
+> - On-screen keyboard: `pizxel/ui/components/on-screen-keyboard.ts` (built, exported from `pizxel/ui`)
+> - UI controls: `pizxel/ui/components/` and `pizxel/ui/layout/` (not `ui/controls/`)
+> - Key-value storage: `pizxel/storage/app-storage.ts`, saving to `<data root>/storage/<app>.json`
+> - Settings: `pizxel/ui/dialogs/settings-dialog.ts` exists but is not wired into an app yet
+> - Notifications: `pizxel/core/notification-manager.ts` (built); `pizxel/network/` HTTP client: not built
+> - Canvas audio: `pizxel/drivers/audio/canvas-audio-output-driver.ts` (not `audio/canvas-audio-driver.ts`)
+> - Games (Tetris, Breakout, Frogger…) have not been ported from MatrixOS yet
+>
+> For current APIs see [API_REFERENCE.md](API_REFERENCE.md).
+
 **Date:** November 27, 2025
 **Status:** Audio system fixed, beginning priority features
 
