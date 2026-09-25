@@ -37,9 +37,14 @@ export class TimerApp implements App {
   private minutes = 5;
   private seconds = 0;
 
-  // Runtime tracking
+  // Runtime tracking: a running timer counts down to a fixed end time, so
+  // foreground frames and background ticks always agree
   private remainingMs = 0;
-  private lastTickTime = 0;
+  private endTime = 0;
+  // What's on screen, to redraw only when it changes
+  private shownSeconds = -1;
+  private shownBarWidth = -1;
+  private shownFlash = false;
 
   private storage: AppStorage;
 
@@ -69,38 +74,52 @@ export class TimerApp implements App {
     // Continue running in background if timer active
   }
 
+  /** Update remainingMs from the end time; returns true if it just expired */
+  private tick(): boolean {
+    if (this.state !== TimerState.RUNNING) return false;
+    this.remainingMs = Math.max(0, this.endTime - Date.now());
+    if (this.remainingMs > 0) return false;
+    this.state = TimerState.EXPIRED;
+    this.onTimerExpired();
+    this.dirty = true;
+    return true;
+  }
+
   onUpdate(deltaTime: number): void {
+    this.tick();
+
     if (this.state === TimerState.RUNNING) {
-      this.remainingMs -= deltaTime * 1000;
-
-      if (this.remainingMs <= 0) {
-        this.remainingMs = 0;
-        this.state = TimerState.EXPIRED;
-        this.onTimerExpired();
+      // Redraw only when the seconds or the progress bar change
+      const seconds = Math.ceil(this.remainingMs / 1000);
+      const barWidth = Math.floor(TimerApp.BAR_WIDTH * this.progress());
+      if (seconds !== this.shownSeconds || barWidth !== this.shownBarWidth) {
+        this.shownSeconds = seconds;
+        this.shownBarWidth = barWidth;
+        this.dirty = true;
       }
-
-      this.dirty = true;
+    } else if (this.state === TimerState.EXPIRED) {
+      // "TIME'S UP!" flashes twice a second
+      const flash = Math.floor(Date.now() / 500) % 2 === 0;
+      if (flash !== this.shownFlash) {
+        this.shownFlash = flash;
+        this.dirty = true;
+      }
     }
   }
 
   onBackgroundTick(): void {
     // Called ~1/second when app is in background
-    if (this.state === TimerState.RUNNING) {
-      const now = Date.now();
-      const elapsed = this.lastTickTime > 0 ? now - this.lastTickTime : 0;
-      this.lastTickTime = now;
-
-      this.remainingMs -= elapsed;
-
-      if (this.remainingMs <= 0) {
-        this.remainingMs = 0;
-        this.state = TimerState.EXPIRED;
-        this.onTimerExpired();
-
-        // Request to come to foreground to show notification
-        this.request_foreground?.();
-      }
+    if (this.tick()) {
+      // Request to come to foreground to show notification
+      this.request_foreground?.();
     }
+  }
+
+  private static readonly BAR_WIDTH = 200;
+
+  private progress(): number {
+    const totalMs = (this.minutes * 60 + this.seconds) * 1000;
+    return totalMs > 0 ? this.remainingMs / totalMs : 0;
   }
 
   private onTimerExpired(): void {
@@ -113,7 +132,8 @@ export class TimerApp implements App {
 
   onEvent(event: InputEvent): boolean {
     if (this.state === TimerState.EXPIRED) {
-      // Any key resets after expiry
+      // Any key (except Escape, which leaves the app) resets after expiry
+      if (event.key === InputKeys.HOME) return false;
       this.resetTimer();
       this.dirty = true;
       return true;
@@ -180,10 +200,11 @@ export class TimerApp implements App {
       case InputKeys.ACTION:
         // Toggle pause/resume
         if (this.state === TimerState.RUNNING) {
+          this.remainingMs = Math.max(0, this.endTime - Date.now());
           this.state = TimerState.PAUSED;
         } else {
+          this.endTime = Date.now() + this.remainingMs;
           this.state = TimerState.RUNNING;
-          this.lastTickTime = Date.now();
         }
         getAudio()?.play(Sounds.SELECT);
         this.dirty = true;
@@ -202,8 +223,8 @@ export class TimerApp implements App {
 
   private startTimer(): void {
     this.remainingMs = (this.minutes * 60 + this.seconds) * 1000;
+    this.endTime = Date.now() + this.remainingMs;
     this.state = TimerState.RUNNING;
-    this.lastTickTime = Date.now();
     getAudio()?.play(Sounds.COIN);
     this.dirty = true;
   }
@@ -211,9 +232,9 @@ export class TimerApp implements App {
   private resetTimer(): void {
     this.state = TimerState.IDLE;
     this.remainingMs = 0;
-    this.lastTickTime = 0;
+    this.endTime = 0;
     this.inputMode = InputMode.MINUTES;
-    getAudio()?.play(Sounds.ERROR);
+    getAudio()?.play(Sounds.SELECT);
     this.dirty = true;
   }
 
@@ -332,9 +353,8 @@ export class TimerApp implements App {
     matrix.text(status, centerX - statusWidth / 2, centerY + 40, statusColor);
 
     // Progress bar
-    const totalMs = (this.minutes * 60 + this.seconds) * 1000;
-    const progress = this.remainingMs / totalMs;
-    const barWidth = 200;
+    const progress = this.progress();
+    const barWidth = TimerApp.BAR_WIDTH;
     const barHeight = 8;
     const barX = centerX - barWidth / 2;
     const barY = centerY + 60;

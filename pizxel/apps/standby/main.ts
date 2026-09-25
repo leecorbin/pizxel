@@ -164,6 +164,10 @@ export class StandbyApp implements App {
     this.storage.set("overlay_brightness", this.overlayBrightness);
   }
 
+  /** Redraw rate: plenty for an ambient screensaver, and far fewer frames */
+  private static readonly REDRAW_INTERVAL = 1 / 15;
+  private sinceRedraw = 0;
+
   onUpdate(deltaTime: number): void {
     this.time += deltaTime;
 
@@ -183,7 +187,11 @@ export class StandbyApp implements App {
         break;
     }
 
-    this.dirty = true;
+    this.sinceRedraw += deltaTime;
+    if (this.sinceRedraw >= StandbyApp.REDRAW_INTERVAL) {
+      this.sinceRedraw = 0;
+      this.dirty = true;
+    }
   }
 
   /**
@@ -192,9 +200,9 @@ export class StandbyApp implements App {
   private updateStarfield(deltaTime: number): void {
     const modeSpeed = this.modeSettings.starfield.speed;
     for (const star of this.stars) {
-      // Fast drift scaled by user setting
-      star.x += star.z * 3.0 * modeSpeed;
-      star.y += star.z * 2.0 * modeSpeed;
+      // Fast drift scaled by user setting (tuned as px per 60fps frame)
+      star.x += star.z * 3.0 * modeSpeed * deltaTime * 60;
+      star.y += star.z * 2.0 * modeSpeed * deltaTime * 60;
 
       // Wrap around
       if (star.x > 256) star.x = 0;
@@ -215,12 +223,12 @@ export class StandbyApp implements App {
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
 
-      // Move
-      p.x += p.vx * modeSpeed;
-      p.y += p.vy * modeSpeed;
+      // Move (velocities are px per 60fps frame)
+      p.x += p.vx * modeSpeed * deltaTime * 60;
+      p.y += p.vy * modeSpeed * deltaTime * 60;
 
-      // Fade (constant rate, not affected by speed)
-      p.life -= deltaTime * 0.001;
+      // Fade over about 6 seconds (constant rate, not affected by speed)
+      p.life -= deltaTime / 6;
 
       // Remove dead particles
       if (p.life <= 0 || p.x < 0 || p.x > 256 || p.y < 0 || p.y > 192) {

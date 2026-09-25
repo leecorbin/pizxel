@@ -11,6 +11,8 @@ import {
   PauseManager,
   getAudio,
   Sounds,
+  KeyRepeat,
+  anyKeyDown,
 } from "../../game";
 
 enum GameState {
@@ -87,8 +89,13 @@ export class TetrisApp implements App {
   private readonly gridWidth = 10;
   private readonly gridHeight = 20;
   private readonly cellSize = 8;
-  private readonly gridX = 60;
+  private readonly gridX = 88; // Centred: 88..168, panels either side
   private readonly gridY = 20;
+
+  // Held-key auto-repeat (a press moves at once; holding repeats)
+  private repeatLeft = new KeyRepeat(0.17, 0.05);
+  private repeatRight = new KeyRepeat(0.17, 0.05);
+  private repeatDown = new KeyRepeat(0.1, 0.04);
 
   constructor() {
     this.score = new ScoreManager("tetris");
@@ -264,10 +271,27 @@ export class TetrisApp implements App {
       return;
     }
 
-    this.dropTimer += deltaTime;
+    // Held keys
+    const left = anyKeyDown(InputKeys.LEFT, "a");
+    const right = anyKeyDown(InputKeys.RIGHT, "d");
+    for (let n = this.repeatLeft.update(left && !right, deltaTime); n > 0; n--) {
+      this.movePiece(-1, 0);
+      this.dirty = true;
+    }
+    for (let n = this.repeatRight.update(right && !left, deltaTime); n > 0; n--) {
+      this.movePiece(1, 0);
+      this.dirty = true;
+    }
+    const down = anyKeyDown(InputKeys.DOWN, "s");
+    for (let n = this.repeatDown.update(down, deltaTime); n > 0; n--) {
+      this.softDrop();
+    }
+    if (this.state !== GameState.PLAYING) return;
 
+    // Gravity (carry leftover time, so the speed is right at any frame rate)
+    this.dropTimer += deltaTime;
     if (this.dropTimer >= this.dropInterval) {
-      this.dropTimer = 0;
+      this.dropTimer = Math.min(this.dropTimer - this.dropInterval, this.dropInterval);
 
       if (!this.movePiece(0, 1)) {
         this.lockPiece();
@@ -275,6 +299,14 @@ export class TetrisApp implements App {
 
       this.dirty = true;
     }
+  }
+
+  private softDrop(): void {
+    if (this.movePiece(0, 1)) {
+      this.score.addScore(1); // Bonus for soft drop
+      this.dropTimer = 0;
+    }
+    this.dirty = true;
   }
 
   onEvent(event: InputEvent): boolean {
@@ -313,6 +345,12 @@ export class TetrisApp implements App {
       return false;
     }
 
+    // Held moves repeat in onUpdate, so ignore the browser's own key repeat
+    const moveKeys = [InputKeys.LEFT, "a", "A", InputKeys.RIGHT, "d", "D", InputKeys.DOWN, "s", "S"];
+    if (event.repeat && moveKeys.includes(event.key)) {
+      return true;
+    }
+
     switch (event.key) {
       case InputKeys.LEFT:
       case "a":
@@ -331,10 +369,7 @@ export class TetrisApp implements App {
       case InputKeys.DOWN:
       case "s":
       case "S":
-        if (this.movePiece(0, 1)) {
-          this.score.addScore(1); // Bonus for soft drop
-        }
-        this.dirty = true;
+        this.softDrop();
         return true;
 
       case InputKeys.UP:
@@ -428,19 +463,21 @@ export class TetrisApp implements App {
       );
     }
 
-    // Side panel
-    matrix.text(`Score: ${this.score.getScore()}`, 10, 30, [255, 255, 255]);
-    matrix.text(`High: ${this.score.getHighScore()}`, 10, 45, [255, 255, 0]);
-    matrix.text(`Lines: ${this.lines}`, 10, 65, [0, 255, 255]);
-    matrix.text(`Level: ${this.level}`, 10, 80, [0, 255, 255]);
+    // Side panel (left of the grid: at most 10 characters)
+    matrix.text("Score", 4, 22, [200, 200, 200]);
+    matrix.text(`${this.score.getScore()}`, 4, 32, [255, 255, 255]);
+    matrix.text("High", 4, 48, [200, 200, 200]);
+    matrix.text(`${this.score.getHighScore()}`, 4, 58, [255, 255, 0]);
+    matrix.text(`Lines ${this.lines}`, 4, 76, [0, 255, 255]);
+    matrix.text(`Level ${this.level}`, 4, 88, [0, 255, 255]);
 
     // Next piece preview
-    matrix.text("Next:", 10, 105, [200, 200, 200]);
+    matrix.text("Next:", 4, 108, [200, 200, 200]);
     if (this.nextPiece) {
       for (let y = 0; y < this.nextPiece.shape.length; y++) {
         for (let x = 0; x < this.nextPiece.shape[y].length; x++) {
           if (this.nextPiece.shape[y][x]) {
-            const px = 10 + x * 8;
+            const px = 4 + x * 8;
             const py = 120 + y * 8;
             matrix.rect(px, py, 7, 7, this.nextPiece.color, true);
           }
@@ -449,11 +486,12 @@ export class TetrisApp implements App {
     }
 
     // Controls hint
-    matrix.text("A/D: Move", 180, 30, [150, 150, 150]);
-    matrix.text("W/SPC: Rotate", 180, 45, [150, 150, 150]);
-    matrix.text("S: Soft drop", 180, 60, [150, 150, 150]);
-    matrix.text("X: Hard drop", 180, 75, [150, 150, 150]);
-    matrix.text("P: Pause", 180, 90, [150, 150, 150]);
+    // Controls hint (right of the grid: at most 10 characters)
+    matrix.text("A/D Move", 174, 22, [150, 150, 150]);
+    matrix.text("W Rotate", 174, 36, [150, 150, 150]);
+    matrix.text("S Down", 174, 50, [150, 150, 150]);
+    matrix.text("X Drop", 174, 64, [150, 150, 150]);
+    matrix.text("P Pause", 174, 78, [150, 150, 150]);
 
     // Game over overlay
     if (this.state === GameState.GAME_OVER) {
@@ -469,14 +507,14 @@ export class TetrisApp implements App {
       }
 
       matrix.rect(60, 60, 140, 80, [0, 255, 255], false);
-      matrix.text("GAME OVER", 84, 80, [255, 255, 255]);
-      matrix.text(`Score: ${this.score.getScore()}`, 84, 100, [255, 255, 255]);
+      matrix.centeredText("GAME OVER", 76, [255, 255, 255]);
+      matrix.centeredText(`Score: ${this.score.getScore()}`, 92, [255, 255, 255]);
 
       if (this.score.isNewHighScore()) {
-        matrix.text("NEW HIGH!", 76, 110, [255, 255, 0]);
+        matrix.centeredText("NEW HIGH!", 106, [255, 255, 0]);
       }
 
-      matrix.text("ENTER to restart", 68, 125, [200, 200, 200]);
+      matrix.centeredText("ENTER to restart", 124, [200, 200, 200]);
     }
 
     // Pause overlay

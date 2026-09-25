@@ -48,6 +48,7 @@ export class AppFramework {
   // Held keys, for isKeyDown(). Keys from sources that never send keyup (the
   // terminal) are released automatically after a timeout, reset by repeats.
   private keysDown: Map<string, NodeJS.Timeout | null> = new Map();
+  private lastKeyPress: Map<string, number> = new Map();
 
   constructor(deviceManager: DeviceManager) {
     this.deviceManager = deviceManager;
@@ -276,12 +277,16 @@ export class AppFramework {
     const previous = this.keysDown.get(name);
     if (previous) clearTimeout(previous);
 
-    // The terminal can't report key releases: treat a key as held until its
-    // auto-repeat stops (repeat delay is ~500ms)
-    const timer =
-      event.source === "keyboard"
-        ? setTimeout(() => this.keysDown.delete(name), 550)
-        : null;
+    // The terminal can't report key releases, so guess: a key is held briefly
+    // after a press, and kept held while its auto-repeat keeps arriving
+    // (presses under 600ms apart). A tap then barely lingers.
+    let timer: NodeJS.Timeout | null = null;
+    if (event.source === "keyboard") {
+      const now = performance.now();
+      const repeating = now - (this.lastKeyPress.get(name) ?? -Infinity) < 600;
+      this.lastKeyPress.set(name, now);
+      timer = setTimeout(() => this.keysDown.delete(name), repeating ? 100 : 150);
+    }
     this.keysDown.set(name, timer);
     return true;
   }

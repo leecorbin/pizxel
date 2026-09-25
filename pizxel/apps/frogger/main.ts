@@ -15,6 +15,8 @@ import {
   LevelManager,
   getAudio,
   Sounds,
+  KeyRepeat,
+  anyKeyDown,
 } from "../../game";
 
 enum GameState {
@@ -42,6 +44,9 @@ export class FroggerApp implements App {
   private readonly laneHeight = 16;
   private readonly startY = 40;
   private respawnTimer = 0;
+  private bestY = 168; // Furthest-up row reached this life (for scoring)
+  private crossings = 0;
+  private hopRepeat = new KeyRepeat(0.3, 0.18);
 
   constructor() {
     // Create frog (12x12)
@@ -110,6 +115,7 @@ export class FroggerApp implements App {
   private resetFrog(): void {
     this.frog.x = 122;
     this.frog.y = 168;
+    this.bestY = this.frog.y;
     this.respawnTimer = 0;
   }
 
@@ -121,33 +127,25 @@ export class FroggerApp implements App {
       getAudio()?.play(Sounds.COIN);
 
       // Level up every 3 successful crossings
-      if (this.score.getScore() % 300 === 0) {
+      this.crossings++;
+      if (this.crossings % 3 === 0) {
         this.level.nextLevel();
       }
     }
   }
 
   async onActivate(): Promise<void> {
+    // Coming back to a game in progress: start paused
+    if (this.state === GameState.PLAYING && !this.pause.isPaused()) {
+      this.pause.pause();
+    }
     this.dirty = true;
   }
 
   onDeactivate(): void {}
 
-  onUpdate(deltaTime: number): void {
-    if (this.state !== GameState.PLAYING || this.pause.isPaused()) {
-      return;
-    }
-
-    if (this.respawnTimer > 0) {
-      this.respawnTimer -= deltaTime;
-      if (this.respawnTimer <= 0) {
-        this.resetFrog();
-      }
-      this.dirty = true;
-      return;
-    }
-
-    // Update cars
+  /** Move cars and logs; returns whether the frog is riding a log */
+  private moveTraffic(deltaTime: number, carryFrog: boolean): boolean {
     for (const car of this.cars) {
       car.update(deltaTime);
 
@@ -157,21 +155,8 @@ export class FroggerApp implements App {
       } else if (car.vx < 0 && car.x < -car.width) {
         car.x = this.width;
       }
-
-      // Collision with frog
-      if (spriteSprite(this.frog, car)) {
-        this.lives.loseLife();
-        this.respawnTimer = 1.0;
-        getAudio()?.play(Sounds.DIE);
-
-        if (this.lives.isGameOver()) {
-          this.state = GameState.GAME_OVER;
-        }
-        break;
-      }
     }
 
-    // Update logs
     let onLog = false;
     for (const log of this.logs) {
       log.update(deltaTime);
@@ -184,36 +169,114 @@ export class FroggerApp implements App {
       }
 
       // Frog rides on log
-      if (spriteSprite(this.frog, log)) {
+      if (carryFrog && !onLog && spriteSprite(this.frog, log)) {
         onLog = true;
         this.frog.x += log.vx * deltaTime;
       }
     }
+    return onLog;
+  }
 
-    // Check if frog is in water without log
-    const frogLane = Math.floor((this.frog.y - this.startY) / this.laneHeight);
-    if (frogLane >= 4 && frogLane < 8 && !onLog) {
-      this.lives.loseLife();
-      this.respawnTimer = 1.0;
-      getAudio()?.play(Sounds.DIE);
+  /** Lose a life (only once per death, whatever caused it) */
+  private die(sound: string): void {
+    this.lives.loseLife();
+    this.respawnTimer = 1.0;
+    getAudio()?.play(sound);
 
-      if (this.lives.isGameOver()) {
-        this.state = GameState.GAME_OVER;
+    if (this.lives.isGameOver()) {
+      this.state = GameState.GAME_OVER;
+      this.score.saveHighScore();
+    }
+  }
+
+  onUpdate(deltaTime: number): void {
+    if (this.state !== GameState.PLAYING || this.pause.isPaused()) {
+      return;
+    }
+    this.dirty = true;
+
+    // Waiting to respawn: the world keeps moving
+    if (this.respawnTimer > 0) {
+      this.moveTraffic(deltaTime, false);
+      this.respawnTimer -= deltaTime;
+      if (this.respawnTimer <= 0) {
+        this.resetFrog();
       }
+      return;
     }
 
-    // Keep frog on screen
-    if (this.frog.x < 0 || this.frog.x + this.frog.width > this.width) {
-      this.lives.loseLife();
-      this.respawnTimer = 1.0;
-      getAudio()?.play(Sounds.ERROR);
+    // A held key keeps hopping, at a steady pace
+    const direction = this.heldDirection();
+    for (let n = this.hopRepeat.update(direction !== null, deltaTime); n > 0; n--) {
+      if (direction) this.hop(direction);
+    }
 
-      if (this.lives.isGameOver()) {
-        this.state = GameState.GAME_OVER;
-      }
+    const onLog = this.moveTraffic(deltaTime, true);
+
+    // Hit by a car
+    if (this.cars.some((car) => spriteSprite(this.frog, car))) {
+      this.die(Sounds.DIE);
+      return;
+    }
+
+    // In the water without a log
+    const frogLane = Math.floor((this.frog.y - this.startY) / this.laneHeight);
+    if (frogLane >= 4 && frogLane < 8 && !onLog) {
+      this.die(Sounds.DIE);
+      return;
+    }
+
+    // Carried off screen
+    if (this.frog.x < 0 || this.frog.x + this.frog.width > this.width) {
+      this.die(Sounds.ERROR);
+      return;
     }
 
     this.checkWin();
+  }
+
+  private heldDirection(): "up" | "down" | "left" | "right" | null {
+    if (anyKeyDown(InputKeys.UP, "w")) return "up";
+    if (anyKeyDown(InputKeys.DOWN, "s")) return "down";
+    if (anyKeyDown(InputKeys.LEFT, "a")) return "left";
+    if (anyKeyDown(InputKeys.RIGHT, "d")) return "right";
+    return null;
+  }
+
+  private static directionOf(key: string): "up" | "down" | "left" | "right" | null {
+    switch (key) {
+      case InputKeys.UP: case "w": case "W": return "up";
+      case InputKeys.DOWN: case "s": case "S": return "down";
+      case InputKeys.LEFT: case "a": case "A": return "left";
+      case InputKeys.RIGHT: case "d": case "D": return "right";
+      default: return null;
+    }
+  }
+
+  /** One hop; scores only for reaching a new furthest-up row */
+  private hop(direction: "up" | "down" | "left" | "right"): void {
+    switch (direction) {
+      case "up":
+        if (this.frog.y <= this.startY) return;
+        this.frog.y = Math.max(this.startY - this.laneHeight, this.frog.y - this.laneHeight);
+        break;
+      case "down":
+        if (this.frog.y >= 168) return;
+        this.frog.y = Math.min(168, this.frog.y + this.laneHeight);
+        break;
+      case "left":
+        this.frog.x = Math.max(0, this.frog.x - this.laneHeight);
+        break;
+      case "right":
+        this.frog.x = Math.min(this.width - this.frog.width, this.frog.x + this.laneHeight);
+        break;
+    }
+
+    if (this.frog.y < this.bestY) {
+      this.bestY = this.frog.y;
+      this.score.addScore(10);
+    }
+    getAudio()?.play(Sounds.JUMP);
     this.dirty = true;
   }
 
@@ -234,6 +297,8 @@ export class FroggerApp implements App {
       this.lives.reset();
       this.score.reset();
       this.level.reset();
+      this.crossings = 0;
+      this.pause.resume();
       this.setupLevel(1);
       this.resetFrog();
       this.state = GameState.PLAYING;
@@ -249,49 +314,14 @@ export class FroggerApp implements App {
       return false;
     }
 
-    // Frog movement (one jump at a time)
-    let moved = false;
-
-    if (event.key === InputKeys.UP || event.key === "w" || event.key === "W") {
-      if (this.frog.y > this.startY) {
-        this.frog.y = Math.max(
-          this.startY - this.laneHeight,
-          this.frog.y - this.laneHeight
-        );
-        moved = true;
+    // Frog movement: one hop per press; holding hops steadily (onUpdate),
+    // so the browser's own fast key repeat is ignored
+    const direction = FroggerApp.directionOf(event.key);
+    if (direction) {
+      if (!event.repeat) {
+        this.hop(direction);
+        this.hopRepeat.reset();
       }
-    } else if (
-      event.key === InputKeys.DOWN ||
-      event.key === "s" ||
-      event.key === "S"
-    ) {
-      if (this.frog.y < 168) {
-        this.frog.y = Math.min(168, this.frog.y + this.laneHeight);
-        moved = true;
-      }
-    } else if (
-      event.key === InputKeys.LEFT ||
-      event.key === "a" ||
-      event.key === "A"
-    ) {
-      this.frog.x = Math.max(0, this.frog.x - this.laneHeight);
-      moved = true;
-    } else if (
-      event.key === InputKeys.RIGHT ||
-      event.key === "d" ||
-      event.key === "D"
-    ) {
-      this.frog.x = Math.min(
-        this.width - this.frog.width,
-        this.frog.x + this.laneHeight
-      );
-      moved = true;
-    }
-
-    if (moved) {
-      this.score.addScore(10);
-      getAudio()?.play(Sounds.JUMP);
-      this.dirty = true;
       return true;
     }
 
@@ -305,7 +335,7 @@ export class FroggerApp implements App {
     matrix.rect(0, 0, this.width, this.startY, [20, 20, 40], true);
     matrix.text(`Score: ${this.score.getScore()}`, 10, 8, [255, 255, 255]);
     matrix.text(`High: ${this.score.getHighScore()}`, 10, 20, [255, 255, 0]);
-    this.lives.render(matrix, this.width - 70, 12, [255, 0, 0]);
+    this.lives.render(matrix, this.width - 104, 12, [255, 0, 0]);
     matrix.text(
       `L${this.level.getLevel()}`,
       this.width - 30,
