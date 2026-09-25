@@ -329,7 +329,10 @@ async function main() {
     assert(clockApp.secrets && !clockApp.secrets.set("token", "t0p-secret"), "saving a secret with no vault fails");
     await viewerB.waitFor(() => viewerB.messages.some((m) => m.type === "vault:setup"));
     const setup = viewerB.messages.find((m) => m.type === "vault:setup");
-    assert(setup.app === "clock" && setup.name === "token", "and sends vault:setup naming the app and secret");
+    assert(
+      setup.app === "clock" && setup.appName === "Clock" && setup.name === "token",
+      "and sends vault:setup naming the app (id and display name) and secret"
+    );
     clockApp.secrets.set("token", "again");
     await wait(50);
     assert(viewerB.messages.filter((m) => m.type === "vault:setup").length === 1, "only once until the state changes");

@@ -164,8 +164,8 @@ skipped for it until it catches up.
 | `{"type":"audio:request-start","app":"now-playing","name":"Now Playing"}` | An app wants the microphone (see below); `app` is its catalog id (`null` if unknown), `name` its display name |
 | `{"type":"audio:request-stop"}` | The app is done with the microphone |
 | `{"type":"vault:state","state":"none"\|"locked"\|"unlocked"}` | The vault's state: sent on every connect and whenever it changes (see Vault) |
-| `{"type":"vault:setup","app":"news-reader","name":"apiKey"}` | An app is saving its first secret and no vault exists yet: run onboarding, then send `vault:key` |
-| `{"type":"vault:need","app":"news-reader","name":"apiKey"}` | An app needs a secret while the vault is locked: unlock (silently if possible), then send `vault:key` |
+| `{"type":"vault:setup","app":"news-reader","appName":"News","name":"apiKey"}` | An app is saving its first secret and no vault exists yet: run onboarding, then send `vault:key` |
+| `{"type":"vault:need","app":"news-reader","appName":"News","name":"apiKey"}` | An app needs a secret while the vault is locked: unlock (silently if possible), then send `vault:key` |
 | `{"type":"vault:bad-key"}` | The `vault:key` sent doesn't open this vault |
 | `{"type":"escape:unhandled"}` | Escape was pressed at the launcher and nothing used it (sent for a non-repeat keydown only), e.g. so the viewer can leave full screen |
 

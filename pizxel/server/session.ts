@@ -113,7 +113,12 @@ export class Session implements AudioBridge {
       const key = `${kind}\0${app}\0${name}`;
       if (this.vaultRequestsSent.has(key)) return;
       this.vaultRequestsSent.add(key);
-      this.broadcastJSON({ type: kind === "setup" ? "vault:setup" : "vault:need", app, name });
+      this.broadcastJSON({
+        type: kind === "setup" ? "vault:setup" : "vault:need",
+        app,
+        appName: this.instance?.appName(app) ?? app,
+        name,
+      });
     };
     this.lastActiveAt = this.readMeta()?.lastActiveAt ?? Date.now();
   }
