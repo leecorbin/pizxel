@@ -47,6 +47,7 @@ interface GeometricShape {
 }
 
 export class StandbyApp implements App {
+  readonly name = "Standby";
   private mode: AnimationMode = "starfield";
   private showClock: boolean = true;
   private brightnessMultiplier: number = 0.15;
@@ -94,10 +95,6 @@ export class StandbyApp implements App {
     this.storage.set("showClock", this.showClock);
   }
 
-  async onBackgroundTick(deltaTime: number): Promise<void> {
-    // Not used
-  }
-
   onEvent(event: InputEvent): boolean {
     if (event.key === InputKeys.ACTION) {
       // Space: Cycle through modes
@@ -117,7 +114,9 @@ export class StandbyApp implements App {
     return false;
   }
 
-  update(deltaTime: number): void {
+  onUpdate(deltaSeconds: number): void {
+    // Framework passes seconds; animations below are written in milliseconds
+    const deltaTime = deltaSeconds * 1000;
     this.time += deltaTime;
     
     switch (this.mode) {
