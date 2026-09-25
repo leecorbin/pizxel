@@ -1,5 +1,6 @@
 {
   "name": "Demo",
+  "description": "A tour of PiZXel's UI components, loading spinners, visual effects and emoji",
   "main": "main.ts",
   "icon": "🌈",
   "color": [
