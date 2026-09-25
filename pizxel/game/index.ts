@@ -31,5 +31,5 @@ export * from "./physics";
 export * from "./utils";
 
 // Re-export audio for convenience
-export { getAudio } from "../start";
+export { getAudio } from "../core/instance-context";
 export { Sounds, Audio } from "../audio/audio";

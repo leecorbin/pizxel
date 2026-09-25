@@ -10,6 +10,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { createServer } from "http";
 import { DisplayBuffer } from "../core/display-buffer";
 import { RGB } from "../types";
+import { debugLog } from "../core/debug";
 
 export interface CanvasServerOptions {
   port?: number;
@@ -178,7 +179,7 @@ export class CanvasServer {
    * Send audio beep to all connected clients
    */
   sendBeep(frequency: number, duration: number, volume: number = 0.5): void {
-    console.log(
+    debugLog(
       `[CanvasServer] Emitting audio:beep to ${this.clientCount} clients`
     );
     this.io?.emit("audio:beep", { frequency, duration, volume });
@@ -281,15 +282,14 @@ export class CanvasServer {
 
     // Only emit if we have clients
     if (this.clientCount === 0) {
-      console.log("[CanvasServer] Frame cached but no clients connected");
+      debugLog("[CanvasServer] Frame cached but no clients connected");
       return;
     }
 
     // Debug: Log frame data occasionally
-    if (flatData.length > 0 && Math.random() < 0.1) {
-      const sample = flatData.slice(0, 30);
+    if (process.env.PIZXEL_DEBUG && flatData.length > 0 && Math.random() < 0.1) {
       const nonZero = flatData.filter((v) => v !== 0).length;
-      console.log(
+      debugLog(
         `[CanvasServer] Sending frame: ${flatData.length} values, ${nonZero} non-zero`
       );
     }

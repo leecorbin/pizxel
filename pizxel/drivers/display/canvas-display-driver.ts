@@ -7,6 +7,7 @@
 
 import { DisplayDriver } from "../base/device-driver";
 import { CanvasServer } from "../../display/canvas-server";
+import { debugLog } from "../../core/debug";
 
 export class CanvasDisplayDriver extends DisplayDriver {
   readonly priority = 80; // High priority - preferred for dev
@@ -59,17 +60,19 @@ export class CanvasDisplayDriver extends DisplayDriver {
     }
 
     // Debug: Check buffer content
-    const buffer = this.getBuffer();
-    let nonBlackPixels = 0;
-    for (let y = 0; y < this.height && y < 10; y++) {
-      for (let x = 0; x < this.width && x < 10; x++) {
-        const [r, g, b] = buffer[y][x];
-        if (r !== 0 || g !== 0 || b !== 0) nonBlackPixels++;
+    if (process.env.PIZXEL_DEBUG) {
+      const buffer = this.getBuffer();
+      let nonBlackPixels = 0;
+      for (let y = 0; y < this.height && y < 10; y++) {
+        for (let x = 0; x < this.width && x < 10; x++) {
+          const [r, g, b] = buffer[y][x];
+          if (r !== 0 || g !== 0 || b !== 0) nonBlackPixels++;
+        }
       }
+      debugLog(
+        `[CanvasDisplayDriver] show() called, buffer sample (10x10): ${nonBlackPixels} non-black pixels`
+      );
     }
-    console.log(
-      `[CanvasDisplayDriver] show() called, buffer sample (10x10): ${nonBlackPixels} non-black pixels`
-    );
 
     // Send current buffer to all connected browser clients
     // DisplayDriver extends DisplayBuffer, so 'this' works

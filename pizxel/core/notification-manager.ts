@@ -8,7 +8,7 @@
 
 import { App } from "../types";
 import { DisplayBuffer } from "../core/display-buffer";
-import { getAudio } from "../start";
+import { getAudio } from "../core/instance-context";
 import { Sounds } from "../audio/audio";
 
 export interface Notification {

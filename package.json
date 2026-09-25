@@ -9,7 +9,7 @@
     "start:canvas": "tsx pizxel/start.ts --canvas",
     "start:term": "tsx pizxel/start.ts --term",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/example-test.ts",
+    "test": "tsx tests/instance-test.ts",
     "clean": "rm -rf dist"
   },
   "keywords": [

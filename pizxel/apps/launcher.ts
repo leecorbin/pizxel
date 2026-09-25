@@ -10,7 +10,7 @@ import { DisplayBuffer } from "../core/display-buffer";
 import { AppFramework } from "../core/app-framework";
 import { HelpModal, GamesPopup } from "../ui";
 import { getEmojiLoader } from "../lib/emoji-loader";
-import { getAudio } from "../start";
+import { getAudio } from "../core/instance-context";
 import { Sounds } from "../audio/audio";
 
 interface AppIcon {

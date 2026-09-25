@@ -26,13 +26,27 @@ export interface ScannedApp {
   path: string;
 }
 
+export interface AppScannerOptions {
+  /**
+   * Directory of user apps. Defaults to data/default-user/apps under the
+   * project root; null disables user apps (server mode).
+   */
+  userAppsPath?: string | null;
+}
+
 export class AppScanner {
   private systemAppsPath: string;
-  private userAppsPath: string;
+  private userAppsPath: string | null;
 
-  constructor(projectRoot: string = process.cwd()) {
+  constructor(
+    projectRoot: string = process.cwd(),
+    options: AppScannerOptions = {}
+  ) {
     this.systemAppsPath = path.join(projectRoot, "pizxel", "apps");
-    this.userAppsPath = path.join(projectRoot, "data", "default-user", "apps");
+    this.userAppsPath =
+      options.userAppsPath === undefined
+        ? path.join(projectRoot, "data", "default-user", "apps")
+        : options.userAppsPath;
   }
 
   /**
@@ -48,7 +62,7 @@ export class AppScanner {
     }
 
     // Scan user apps
-    if (fs.existsSync(this.userAppsPath)) {
+    if (this.userAppsPath && fs.existsSync(this.userAppsPath)) {
       const userApps = await this.scanDirectory(this.userAppsPath);
       apps.push(...userApps);
     }

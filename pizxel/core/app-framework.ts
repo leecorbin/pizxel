@@ -10,6 +10,7 @@ import { DisplayBuffer } from "./display-buffer";
 import { DeviceManager } from "./device-manager";
 import { NotificationManager } from "./notification-manager";
 import { StandbyManager } from "../standby-manager";
+import { debugLog } from "./debug";
 
 export class AppFramework {
   private activeApp: App | null = null;
@@ -157,7 +158,7 @@ export class AppFramework {
 
         // Render if app is dirty
         if ((this.activeApp as any).dirty) {
-          console.log(`[AppFramework] App is dirty, rendering...`);
+          debugLog(`[AppFramework] App is dirty, rendering...`);
           this.render();
         }
       } catch (error) {
@@ -203,7 +204,7 @@ export class AppFramework {
       return;
     }
 
-    console.log("[AppFramework] render() called");
+    debugLog("[AppFramework] render() called");
 
     try {
       // Let app render to buffer
@@ -216,14 +217,14 @@ export class AppFramework {
       const display = this.deviceManager.getDisplay();
       const buffer = this.displayBuffer.getBuffer();
 
-      console.log("[AppFramework] Copying buffer to display driver");
+      debugLog("[AppFramework] Copying buffer to display driver");
       for (let y = 0; y < this.displayBuffer.getHeight(); y++) {
         for (let x = 0; x < this.displayBuffer.getWidth(); x++) {
           display.setPixel(x, y, buffer[y][x]);
         }
       }
 
-      console.log("[AppFramework] Calling display.show()");
+      debugLog("[AppFramework] Calling display.show()");
       display.show();
     } catch (error) {
       this.handleAppError(this.activeApp!, error);

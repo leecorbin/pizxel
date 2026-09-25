@@ -32,6 +32,15 @@ export class DeviceManager {
   }
 
   /**
+   * Use specific driver instances instead of auto-selecting from registered
+   * classes (e.g. per-session drivers in server mode, or test drivers)
+   */
+  useDrivers(display: DisplayDriver, input: InputDriver): void {
+    this.displayDriver = display;
+    this.inputDriver = input;
+  }
+
+  /**
    * Initialize device manager and select best available drivers
    */
   async initialize(): Promise<void> {
@@ -39,8 +48,8 @@ export class DeviceManager {
       return;
     }
 
-    // Select and initialize display driver
-    this.displayDriver = await this.selectDisplayDriver();
+    // Select and initialize display driver (unless one was provided)
+    this.displayDriver ??= await this.selectDisplayDriver();
     if (!this.displayDriver) {
       throw new Error("No available display driver found");
     }
@@ -48,8 +57,8 @@ export class DeviceManager {
     console.log(`Selected display driver: ${this.displayDriver.name}`);
     await this.displayDriver.initialize();
 
-    // Select and initialize input driver
-    this.inputDriver = await this.selectInputDriver();
+    // Select and initialize input driver (unless one was provided)
+    this.inputDriver ??= await this.selectInputDriver();
     if (!this.inputDriver) {
       throw new Error("No available input driver found");
     }

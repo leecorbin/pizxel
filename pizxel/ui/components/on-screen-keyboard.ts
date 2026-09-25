@@ -13,7 +13,7 @@
 import { Widget, WidgetOptions } from "../core/widget";
 import { DisplayBuffer } from "../../core/display-buffer";
 import { RGB, InputEvent, InputKeys } from "../../types/index";
-import { getAudio } from "../../start";
+import { getAudio } from "../../core/instance-context";
 import { Sounds } from "../../audio/audio";
 
 export interface OnScreenKeyboardOptions extends WidgetOptions {

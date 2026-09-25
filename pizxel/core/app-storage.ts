@@ -7,16 +7,15 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import { getInstanceContext } from "./instance-context";
 
 export class AppStorage {
   private dataDir: string;
 
   constructor(appName: string) {
-    // Store in data/default-user/app-data/<app-name>/
+    // Store in <data root>/app-data/<app-name>/ (default: data/default-user)
     this.dataDir = path.join(
-      process.cwd(),
-      "data",
-      "default-user",
+      getInstanceContext().dataRoot,
       "app-data",
       appName.toLowerCase().replace(/\s+/g, "-")
     );

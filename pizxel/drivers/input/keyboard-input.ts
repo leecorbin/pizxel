@@ -7,6 +7,7 @@
 import { InputDriver } from "../base/device-driver";
 import { InputEvent } from "../../types";
 import * as readline from "readline";
+import { debugLog } from "../../core/debug";
 
 export class KeyboardInputDriver extends InputDriver {
   readonly priority = 50; // Medium priority - fallback option
@@ -41,7 +42,7 @@ export class KeyboardInputDriver extends InputDriver {
    * Inject a key event (for canvas/remote input)
    */
   injectKey(key: string): void {
-    console.log(`[KeyboardInput] Injecting key: "${key}"`);
+    debugLog(`[KeyboardInput] Injecting key: "${key}"`);
     this.handleKeyPress(key);
   }
 

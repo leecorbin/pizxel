@@ -1,12 +1,13 @@
 /**
  * AppStorage - Simple key-value persistence for apps
  *
- * Stores data in JSON files in the user's data directory:
- * data/default-user/storage/app-name.json
+ * Stores data in JSON files in the instance's data directory:
+ * <data root>/storage/app-name.json (default data root: data/default-user)
  */
 
 import * as fs from "fs";
 import * as path from "path";
+import { getInstanceContext } from "../core/instance-context";
 
 export class AppStorage {
   private appName: string;
@@ -16,13 +17,8 @@ export class AppStorage {
   constructor(appName: string) {
     this.appName = appName;
 
-    // Storage location: data/default-user/storage/
-    const userDataPath = path.join(
-      process.cwd(),
-      "data",
-      "default-user",
-      "storage"
-    );
+    // Storage location: <data root>/storage/ (default: data/default-user/storage/)
+    const userDataPath = path.join(getInstanceContext().dataRoot, "storage");
 
     // Ensure storage directory exists
     if (!fs.existsSync(userDataPath)) {
