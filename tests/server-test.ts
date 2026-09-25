@@ -306,6 +306,18 @@ async function main() {
     assert(true, "an unhandled Escape at the launcher sends escape:unhandled");
     viewerB.send({ type: "keyup", key: "*" });
 
+    console.log("Microphone");
+    const micSession = manager.get(b) as any;
+    select(manager, b, "Clock");
+    viewerB.send({ type: "key", key: "Enter" });
+    await wait(200);
+    micSession.requestAudioStart();
+    await viewerB.waitFor(() => viewerB.messages.some((m) => m.type === "audio:request-start"));
+    const request = viewerB.messages.find((m) => m.type === "audio:request-start");
+    assert(request.app === "clock" && request.name === "Clock", "audio:request-start names the app asking");
+    viewerB.send({ type: "key", key: "Escape" });
+    await wait(200);
+
     console.log("Limits");
     const c = (await api("POST", "/sessions")).json.id;
     const viewerC = new Viewer(c);

@@ -8,7 +8,6 @@
 import { createCanvas, loadImage, Image as CanvasImage } from "canvas";
 import * as fs from "fs";
 import * as path from "path";
-import * as https from "https";
 import { isNetworkAllowed } from "../core/network";
 import { DisplayBuffer } from "../core/display-buffer";
 
@@ -115,28 +114,13 @@ export class EmojiLoader {
 
       console.log(`[EmojiLoader] Fetching ${emoji} from CDN: ${url}`);
 
-      return await new Promise<CanvasImage>((resolve, reject) => {
-        https
-          .get(url, (response) => {
-            if (response.statusCode !== 200) {
-              reject(new Error(`CDN returned ${response.statusCode}`));
-              return;
-            }
-
-            const chunks: Buffer[] = [];
-            response.on("data", (chunk) => chunks.push(chunk));
-            response.on("end", async () => {
-              try {
-                const buffer = Buffer.concat(chunks);
-                const image = await loadImage(buffer);
-                resolve(image);
-              } catch (err) {
-                reject(err);
-              }
-            });
-          })
-          .on("error", reject);
-      });
+      // fetch (not the https module), so the request goes through the
+      // network policy and, on a server, its egress proxy
+      const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      if (!response.ok) {
+        throw new Error(`CDN returned ${response.status}`);
+      }
+      return await loadImage(Buffer.from(await response.arrayBuffer()));
     } catch (err) {
       console.warn(`[EmojiLoader] Failed to fetch ${emoji} from CDN:`, err);
       return null;

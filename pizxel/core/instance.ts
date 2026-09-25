@@ -54,6 +54,8 @@ export interface PizxelInstance {
   run<T>(fn: () => T): T;
   /** Ids (directory names) of the apps loaded into the launcher */
   loadedAppIds(): string[];
+  /** Id (directory name) of the app in the foreground, if it's a loaded app */
+  activeAppId(): string | null;
   /** Load an app and add it to the launcher (no-op if already loaded) */
   addApp(listing: AppListing): Promise<void>;
   /** Remove an app from the launcher, closing it if it's open */
@@ -153,6 +155,13 @@ export async function createInstance(
     },
     run: (fn) => runInContext(context, fn),
     loadedAppIds: () => [...loadedApps.keys()],
+    activeAppId: () => {
+      const active = appFramework.getActiveApp();
+      for (const [id, app] of loadedApps) {
+        if (app.instance === active) return id;
+      }
+      return null;
+    },
     addApp: (listing) =>
       runInContext(context, async () => {
         if (loadedApps.has(listing.id)) return;

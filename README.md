@@ -62,6 +62,8 @@ Configuration (environment variables):
 | `IDLE_SUSPEND_SECONDS` | `60` | Delay before suspending a session with no viewers |
 | `EXTRA_APPS_DIR` | (none) | Extra apps directory |
 | `INCLUDE_PRIVATE_APPS` | `false` | Load `private` tier apps (for a private instance) |
+| `ALLOW_NETWORK` | `false` | Allow outbound requests to hosts on an allowlist (private instance only; otherwise the server blocks all outbound requests) |
+| `EGRESS_ALLOWLIST` | `$EXTRA_APPS_DIR/egress-allowlist.txt` | The allowlist file |
 | `PIZXEL_DEBUG` | (off) | Per-frame and per-key debug logging (any mode) |
 
 Each app's `config.json` can set `"tier"`: `"core"` (preinstalled, the

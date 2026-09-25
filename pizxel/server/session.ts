@@ -296,6 +296,12 @@ export class Session implements AudioBridge {
     if (!this.sockets.delete(ws)) return;
     this.lagging.delete(ws);
     this.releaseKeys(ws);
+
+    // No viewer left to capture the microphone
+    if (this.sockets.size === 0 && this.audioInputCallback && this.instance) {
+      const callback = this.audioInputCallback;
+      this.instance.run(() => callback("audio:stopped", {}));
+    }
     this.lastActiveAt = Date.now();
     this.writeMeta();
 
@@ -441,7 +447,13 @@ export class Session implements AudioBridge {
   }
 
   requestAudioStart(): void {
-    this.broadcastJSON({ type: "audio:request-start" });
+    // Say which app wants the microphone, so the viewer can ask per app
+    const app = this.instance?.activeAppId() ?? null;
+    this.broadcastJSON({
+      type: "audio:request-start",
+      app,
+      name: this.activeAppName,
+    });
   }
 
   requestAudioStop(): void {

@@ -150,7 +150,7 @@ skipped for it until it catches up.
 | `{"type":"full"}` | No room; sent just before close `4503` |
 | `{"type":"audio:beep","frequency":800,"duration":50,"volume":0.1}` | Play a tone (Hz, ms, 0–1) |
 | `{"type":"audio:sweep","startFreq":400,"endFreq":800,"duration":100,"volume":0.15}` | Play a frequency sweep |
-| `{"type":"audio:request-start"}` | An app wants the microphone (see below) |
+| `{"type":"audio:request-start","app":"now-playing","name":"Now Playing"}` | An app wants the microphone (see below); `app` is its catalog id (`null` if unknown), `name` its display name |
 | `{"type":"audio:request-stop"}` | The app is done with the microphone |
 | `{"type":"escape:unhandled"}` | Escape was pressed at the launcher and nothing used it (sent for a non-repeat keydown only), e.g. so the viewer can leave full screen |
 
@@ -191,7 +191,9 @@ Some apps (e.g. a live equaliser) use the microphone. The website may
 implement this later; until then, apps just see no microphone.
 
 1. The engine sends `audio:request-start` **only when an app asks** for the
-   microphone. The viewer asks the browser for permission then, never before.
+   microphone, naming the app (`app`, `name`) so the viewer can ask for
+   consent per app. The viewer asks the browser for permission then, never
+   before.
 2. The viewer replies with `{"type":"audio:started"}`, `{"type":"audio:denied"}`
    or `{"type":"audio:error","message":"..."}`.
 3. While capturing, the browser analyses the sound and sends summaries, not
@@ -211,8 +213,10 @@ implement this later; until then, apps just see no microphone.
    unscaled level (for debugging); `classification.type` is
    `silence`, `music`, `speech`, `noise` or `unknown`; `tempo` is BPM and may
    be absent.
-4. On `audio:request-stop`, or when the visitor leaves, the viewer stops
-   capturing and sends `{"type":"audio:stopped"}`.
+4. On `audio:request-stop`, or when the visitor leaves (tab hidden, socket
+   closing), the viewer stops capturing and sends `{"type":"audio:stopped"}`.
+   If the last viewer's socket drops, the engine tells the app the
+   microphone stopped itself.
 
 The local canvas viewer is a working reference for the analysis (functions
 `calculateSpectrum`, `calculateLevels`, `calculateWaveform` and
@@ -240,8 +244,14 @@ The local canvas viewer is a working reference for the analysis (functions
   the microphone) aren't in this repo or the public image. They live in his
   private repo and are mounted into his private instance only, with
   `EXTRA_APPS_DIR` and `INCLUDE_PRIVATE_APPS=true`.
-- PiZXel makes no outbound network requests in server mode (the emoji CDN
-  fallback and emoji search are off; see `pizxel/core/network.ts`).
+- The public engine makes no outbound network requests. The server
+  installs a guard that blocks them whatever the app code does: `fetch` is
+  refused, and the `http`/`https` modules can only reach the machine itself
+  (see `pizxel/core/network.ts`).
+- A private instance can allow requests to allowlisted hosts only
+  (`ALLOW_NETWORK=true`, with an `egress-allowlist.txt`). It sends them
+  through the egress proxy (`HTTPS_PROXY` with `NODE_USE_ENV_PROXY=1`); the
+  proxy and the engine both enforce the allowlist.
 - The ZX Spectrum emulator (jsspeccy3) isn't in the image.
 
 ## Configuration
@@ -256,4 +266,7 @@ The local canvas viewer is a working reference for the analysis (functions
 | `IDLE_SUSPEND_SECONDS` | `60` | Delay before suspending an unwatched session |
 | `EXTRA_APPS_DIR` | (none) | Extra apps directory |
 | `INCLUDE_PRIVATE_APPS` | `false` | Load `private` tier apps (Lee's private instance only) |
+| `ALLOW_NETWORK` | `false` | Allow outbound requests to allowlisted hosts (private instance only) |
+| `EGRESS_ALLOWLIST` | `$EXTRA_APPS_DIR/egress-allowlist.txt` | Allowlist: one host per line, `*.example.com` for subdomains, `#` comments |
+| `HTTPS_PROXY`, `NODE_USE_ENV_PROXY=1` | (none) | Send allowed requests through the egress proxy (Node's fetch needs both) |
 | `PIZXEL_DEBUG` | (off) | Per-frame and per-key debug logging |
