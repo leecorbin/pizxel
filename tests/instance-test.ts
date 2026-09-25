@@ -19,6 +19,8 @@ import {
   runInContext,
 } from "../pizxel/core/instance-context";
 import { DisplayDriver, InputDriver } from "../pizxel/drivers/base/device-driver";
+import { setNetworkAllowed } from "../pizxel/core/network";
+import { searchEmojisByName } from "../pizxel/lib/emoji-search-api";
 
 class TestDisplayDriver extends DisplayDriver {
   readonly priority = 0;
@@ -145,6 +147,25 @@ async function main() {
     const bStandby = path.join(b.dataRoot, "storage", "standby.json");
     assert(fs.existsSync(aStandby), "A's app state is saved under A's data root");
     assert(!fs.existsSync(bStandby), "B's data root has no state from A");
+
+    console.log("Network policy");
+    const realFetch = globalThis.fetch;
+    let fetched = false;
+    globalThis.fetch = (async () => {
+      fetched = true;
+      throw new Error("offline");
+    }) as typeof fetch;
+    try {
+      setNetworkAllowed(false);
+      await searchEmojisByName("smile", "test-key");
+      assert(!fetched, "no network request when network use is off");
+      setNetworkAllowed(true);
+      await searchEmojisByName("smile", "test-key");
+      assert(fetched, "network request allowed by default (local mode)");
+    } finally {
+      globalThis.fetch = realFetch;
+      setNetworkAllowed(true);
+    }
   } finally {
     await a.instance.stop();
     await b.instance.stop();

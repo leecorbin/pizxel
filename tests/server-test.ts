@@ -195,10 +195,31 @@ async function main() {
     const saved = JSON.parse(fs.readFileSync(path.join(dataRoot, "sessions", a, "storage", "standby.json"), "utf-8"));
     assert(saved.mode === "flowing", "its app state is saved in its own directory");
 
+    const reopenedA = new Viewer(a);
+    await reopenedA.open();
+    await reopenedA.waitFor(() => reopenedA.frames.length > 0);
+    assert(reopenedA.messages[0]?.type === "init", "reconnecting resumes it (init + frame)");
+    assert(manager.get(a)?.activeAppName === "Launcher", "left at the launcher, it resumes at the launcher");
+
+    // Leave Clock open this time
+    reopenedA.send({ type: "key", key: "ArrowRight" });
+    reopenedA.send({ type: "key", key: "Enter" });
+    await wait(200);
+    assert(manager.get(a)?.activeAppName === "Clock", "Clock is open");
+    reopenedA.close();
+    await wait(IDLE_SUSPEND_MS + 300);
+    assert((await api("GET", `/sessions/${a}/status`)).json.state === "suspended", "it suspends again");
+
     const resumedA = new Viewer(a);
     await resumedA.open();
     await resumedA.waitFor(() => resumedA.frames.length > 0);
-    assert(resumedA.messages[0]?.type === "init", "reconnecting resumes it (init + frame)");
+    assert(manager.get(a)?.activeAppName === "Clock", "and resumes in the app that was open");
+    resumedA.send({ type: "key", key: "Escape" });
+    await wait(200);
+    assert(manager.get(a)?.activeAppName === "Launcher", "from which Escape returns to the launcher");
+    resumedA.send({ type: "key", key: "Enter" });
+    await wait(200);
+    assert(manager.get(a)?.activeAppName === "Clock", "with the app it came from highlighted");
 
     console.log("Delete");
     const deleted = await api("DELETE", `/sessions/${a}`);

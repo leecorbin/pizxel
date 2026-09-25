@@ -75,6 +75,20 @@ export class LauncherApp implements App {
     this.gamesPopup = new GamesPopup(256, 192);
   }
 
+  /**
+   * Highlight an app's icon (or the Games folder, for a game)
+   */
+  selectApp(app: App): void {
+    let index = this.apps.findIndex((a) => a.app === app);
+    if (index < 0 && this.gameApps.some((a) => a.app === app)) {
+      index = this.apps.findIndex((a) => a.isFolder);
+    }
+    if (index >= 0) {
+      this.selectedIndex = index;
+      this.dirty = true;
+    }
+  }
+
   async registerApp(
     name: string,
     emoji: string,

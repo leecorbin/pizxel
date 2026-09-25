@@ -5,6 +5,8 @@
  * Falls back to local spritesheet when emojis are found.
  */
 
+import { isNetworkAllowed } from "../core/network";
+
 export interface EmojiSearchResult {
   emoji: string; // The actual emoji character
   unicodeCodePoint: string; // e.g., "1F602"
@@ -25,8 +27,8 @@ export async function searchEmojisByName(
     return [];
   }
 
-  // If API key is provided, try the real API
-  if (apiKey) {
+  // If API key is provided (and network use is allowed), try the real API
+  if (apiKey && isNetworkAllowed()) {
     try {
       const url = `https://emoji-api.com/emojis?search=${encodeURIComponent(
         query

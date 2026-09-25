@@ -1,0 +1,14 @@
+# Allowlist: only what the engine needs goes into the image.
+# Everything else (.specstory private submodule, data/, jsspeccy3/,
+# matrixos-archive/, planning/, docs, scripts, node_modules) stays out.
+*
+!package.json
+!package-lock.json
+!tsconfig.json
+!LICENSE
+!pizxel/
+
+# Not needed at runtime
+pizxel/examples/
+pizxel/testing/
+**/.DS_Store

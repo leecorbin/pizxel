@@ -32,6 +32,8 @@ export interface InstanceOptions {
   scanner?: AppScannerOptions;
   /** Frame rate cap (default: the framework's 60fps) */
   fps?: number;
+  /** Name of an app to open after the launcher (e.g. the app open at suspend) */
+  startApp?: string | null;
 }
 
 export interface PizxelInstance {
@@ -103,6 +105,13 @@ export async function createInstance(
 
     // Launch launcher (await to ensure emojis load before first render)
     await framework.switchToApp(launcher);
+
+    // Reopen a requested app (ESC still returns to the launcher)
+    const startApp = scannedApps.find((app) => app.instance.name === options.startApp);
+    if (startApp) {
+      launcher.selectApp(startApp.instance);
+      await framework.switchToApp(startApp.instance);
+    }
 
     return framework;
   });

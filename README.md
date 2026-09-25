@@ -1,24 +1,11 @@
-# MatrixOS: LED Matrix Application Framework
+# PiZXel
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![Node 18+](https://img.shields.io/badge/node-18+-green.svg)](https://nodejs.org/)
 
-**A lightweight, event-driven application framework for RGB LED matrix displays.** Turn your Raspberry Pi + LED matrix into a picture frame computer that runs apps, plays games, and can even emulate a ZX Spectrum!
+**A retro-aesthetic OS for LED matrix displays: looks like 1983, works like 2025.** Run it on a Raspberry Pi with an LED matrix or framebuffer display, in your terminal, or in a browser. Try it online at **[pizxel.uk](https://pizxel.uk)**.
 
-MatrixOS provides an operating system-like environment on top of Raspberry Pi OS/Linux, with app management, background tasks, unified input, and a retro computing aesthetic.
-
-```python
-from matrixos.app_framework import App
-
-class MyApp(App):
-    def render(self, matrix):
-        matrix.text("HELLO MATRIXOS!", 10, 28, (255, 255, 255))
-        
-    def on_event(self, event):
-        if event.key == 'OK':
-            # Do something
-            return True
-```
+> **Note:** parts of this README below the Quick Start still describe the earlier Python version (MatrixOS) and are being updated.
 
 ## 🎯 Quick Start
 
@@ -26,47 +13,58 @@ class MyApp(App):
 
 **1. Clone the repository:**
 ```bash
-git clone https://github.com/leecorbin/matrixos.git
-cd matrixos
+git clone https://github.com/leecorbin/pizxel.git
+cd pizxel
 ```
 
-**2. Install dependencies:**
-
-MatrixOS requires [Pillow](https://pillow.readthedocs.io/) (Python Imaging Library) for emoji and icon support.
-
-**Option A: System-wide install (easiest)**
+**2. Install dependencies** (Node.js 18 or later):
 ```bash
-pip3 install -r requirements.txt
-# Or just: pip3 install Pillow
+npm ci
 ```
 
-**Option B: Virtual environment (recommended for development)**
+**3. Run PiZXel:**
 ```bash
-# On Linux/Mac:
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# On Windows:
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-**Note for macOS users:** If you don't have `venv`, it's included in Python 3.3+. Make sure you have Python installed:
-```bash
-python3 --version  # Should be 3.7 or higher
-```
-
-**3. Run MatrixOS:**
-```bash
-python3 start.py
-
-# Or specify resolution (default is 128×128):
-python3 start.py --width 128 --height 128
+npm start               # Auto-detect: framebuffer → browser canvas → terminal
+npm run start:canvas    # Browser canvas at http://localhost:3001
+npm run start:fb        # Framebuffer (Raspberry Pi display)
+npm run start:term      # Terminal
 ```
 
 Navigate with arrow keys, press **Enter** to launch apps, **Space** for jump/fire/action in games, **ESC** to go back, **TAB** for help.
+
+## 🌐 Session Server (pizxel.uk)
+
+`npm run start:server` runs many isolated PiZXels in one process, one per
+visitor session, for the [pizxel.uk](https://pizxel.uk) website. It's an
+extra mode: the local modes above are unaffected. The website talks to it
+over an internal API described in [docs/session-api.md](docs/session-api.md).
+
+```bash
+ENGINE_TOKEN=change-me npm run start:server
+```
+
+Or with Docker:
+
+```bash
+docker build -t pizxel-engine .
+docker run -p 3001:3001 -e ENGINE_TOKEN=change-me -v pizxel-data:/data pizxel-engine
+```
+
+Configuration (environment variables):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `ENGINE_TOKEN` | (required) | Bearer token the website sends on every request |
+| `PORT` | `3001` | HTTP and WebSocket port |
+| `DATA_ROOT` | `./data/server` (`/data` in Docker) | Session data directory |
+| `MAX_LIVE_SESSIONS` | `10` | Sessions running at once |
+| `FPS_CAP` | `20` | Maximum frames per second per session |
+| `IDLE_SUSPEND_SECONDS` | `60` | Delay before suspending a session with no viewers |
+| `EXTRA_APPS_DIR` | (none) | Extra apps directory, e.g. private apps |
+| `PIZXEL_DEBUG` | (off) | Per-frame and per-key debug logging (any mode) |
+
+Local modes also read `CANVAS_PORT` (default `3001`) and `CANVAS_PIXEL_SIZE`
+(default `3`).
 
 ## ✨ Key Features
 

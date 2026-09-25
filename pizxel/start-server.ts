@@ -20,6 +20,7 @@
 import * as path from "path";
 import { SessionManager } from "./server/session-manager";
 import { createSessionServer } from "./server/server";
+import { setNetworkAllowed } from "./core/network";
 
 function intEnv(name: string, fallback: number): number {
   const value = process.env[name];
@@ -37,6 +38,9 @@ async function main() {
     console.error("ENGINE_TOKEN must be set");
     process.exit(1);
   }
+
+  // Visitors must not reach the network through PiZXel
+  setNetworkAllowed(false);
 
   const port = intEnv("PORT", 3001);
   const manager = new SessionManager({

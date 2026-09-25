@@ -35,6 +35,8 @@ interface SessionMeta {
 
 interface SessionConfig {
   enabledApps: string[];
+  /** App that was open when the session was suspended (reopened on resume) */
+  lastApp?: string | null;
 }
 
 /** Longest `key` value accepted (KeyboardEvent.key names are short) */
@@ -93,23 +95,21 @@ export class Session implements AudioBridge {
     return this.sockets.size;
   }
 
+  /** Name of the app in the foreground (null when suspended) */
+  get activeAppName(): string | null {
+    return this.instance?.appFramework.getActiveApp()?.name ?? null;
+  }
+
   /**
    * Optional apps enabled for this session (applied on the next resume)
    */
   getEnabledApps(): string[] {
-    try {
-      const config = JSON.parse(
-        fs.readFileSync(path.join(this.dir, "config.json"), "utf-8")
-      ) as SessionConfig;
-      return Array.isArray(config.enabledApps) ? config.enabledApps : [];
-    } catch {
-      return [];
-    }
+    const enabledApps = this.readConfig().enabledApps;
+    return Array.isArray(enabledApps) ? enabledApps : [];
   }
 
   setEnabledApps(enabledApps: string[]): void {
-    const config: SessionConfig = { enabledApps };
-    fs.writeFileSync(path.join(this.dir, "config.json"), JSON.stringify(config));
+    this.writeConfig({ ...this.readConfig(), enabledApps });
   }
 
   // ===== Lifecycle =====
@@ -161,6 +161,7 @@ export class Session implements AudioBridge {
       dataRoot: this.dir,
       scanner: { userAppsPath: this.options.extraAppsDir, include },
       fps: this.options.fps,
+      startApp: this.readConfig().lastApp,
     });
     await instance.start();
 
@@ -172,6 +173,15 @@ export class Session implements AudioBridge {
   }
 
   private async doSuspend(): Promise<void> {
+    // Remember the open app so the visitor comes back to it
+    const activeApp = this.activeAppName;
+    if (fs.existsSync(this.dir)) {
+      this.writeConfig({
+        ...this.readConfig(),
+        lastApp: activeApp === "Launcher" ? null : activeApp,
+      });
+    }
+
     const instance = this.instance;
     this.instance = null;
     this.display = null;
@@ -333,6 +343,20 @@ export class Session implements AudioBridge {
   }
 
   // ===== Metadata =====
+
+  private readConfig(): SessionConfig {
+    try {
+      return JSON.parse(
+        fs.readFileSync(path.join(this.dir, "config.json"), "utf-8")
+      );
+    } catch {
+      return { enabledApps: [] };
+    }
+  }
+
+  private writeConfig(config: SessionConfig): void {
+    fs.writeFileSync(path.join(this.dir, "config.json"), JSON.stringify(config));
+  }
 
   private readMeta(): SessionMeta | null {
     try {

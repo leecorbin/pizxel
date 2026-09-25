@@ -40,14 +40,14 @@ npm run start:canvas
 - Real-time WebSocket updates
 - 60 FPS display in browser
 - Great for demos and remote viewing
-- Still uses keyboard input from terminal
+- Keyboard input from the browser page (click it first) or the terminal
 
 **After starting:**
 
 1. Terminal shows the app running
 2. Open http://localhost:3001 in your browser
 3. You'll see the display rendered in browser
-4. Control still happens via terminal keyboard
+4. Control it with the keyboard in the browser, or in the terminal
 
 **Canvas Display Features:**
 

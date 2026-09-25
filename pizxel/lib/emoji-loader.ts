@@ -9,6 +9,7 @@ import { createCanvas, loadImage, Image as CanvasImage } from "canvas";
 import * as fs from "fs";
 import * as path from "path";
 import * as https from "https";
+import { isNetworkAllowed } from "../core/network";
 import { DisplayBuffer } from "../core/display-buffer";
 
 interface EmojiMetadata {
@@ -103,6 +104,10 @@ export class EmojiLoader {
    * Fetch emoji image from Twemoji CDN
    */
   private async fetchEmojiFromCDN(emoji: string): Promise<CanvasImage | null> {
+    if (!isNetworkAllowed()) {
+      return null;
+    }
+
     try {
       const codepoint = this.getEmojiCodepoint(emoji);
       // Fetch 72×72 PNG from CDN (we'll scale it to 32×32 for caching)
