@@ -21,6 +21,7 @@ import {
 import { DisplayDriver, InputDriver } from "../pizxel/drivers/base/device-driver";
 import { setNetworkAllowed } from "../pizxel/core/network";
 import { searchEmojisByName } from "../pizxel/lib/emoji-search-api";
+import { AppStorage } from "../pizxel/storage";
 
 class TestDisplayDriver extends DisplayDriver {
   readonly priority = 0;
@@ -69,7 +70,16 @@ interface TestInstance {
   dataRoot: string;
 }
 
-async function makeInstance(dataRoot: string): Promise<TestInstance> {
+async function makeInstance(
+  dataRoot: string,
+  beforeCreate?: () => void
+): Promise<TestInstance> {
+  if (beforeCreate) {
+    runInContext(
+      { dataRoot, audio: null, audioInput: null, appFramework: null },
+      beforeCreate
+    );
+  }
   const display = new TestDisplayDriver();
   const input = new TestInputDriver();
   const deviceManager = new DeviceManager();
@@ -173,6 +183,46 @@ async function main() {
     } finally {
       globalThis.fetch = realFetch;
       setNetworkAllowed(true);
+    }
+
+    console.log("Standby");
+    // Saved config uses the app id "standby" (as the defaults and existing
+    // data/default-user/storage/system.json do); the app's name is "Standby"
+    // and it has never been opened, so the lookup must use scanned apps.
+    const s = await makeInstance(path.join(tmp, "s"), () => {
+      new AppStorage("system").set("config", {
+        enabled: true,
+        idleTimeoutSeconds: 1,
+        schedules: [],
+        defaultApp: "standby",
+        brightnessMultiplier: 0.15,
+      });
+    });
+    try {
+      const launcher = s.instance.appFramework.getActiveApp();
+      await wait(200);
+      const launcherScreen = s.display.checksum;
+      await wait(1600);
+      assert(
+        s.instance.appFramework.getActiveApp()?.name === "Standby",
+        "standby app activates after the idle timeout"
+      );
+      assert(
+        s.instance.appFramework.getStandbyManager().isActive(),
+        "standby manager reports standby active"
+      );
+      press(s, "ArrowRight");
+      await wait(200);
+      assert(
+        s.instance.appFramework.getActiveApp() === launcher,
+        "input leaves standby and returns to the previous app"
+      );
+      assert(
+        s.display.checksum === launcherScreen,
+        "the waking key is not passed on to the restored app"
+      );
+    } finally {
+      await s.instance.stop();
     }
   } finally {
     await a.instance.stop();

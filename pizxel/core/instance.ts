@@ -85,6 +85,8 @@ export async function createInstance(
       category
     );
     loadedApps.set(app.id, app);
+    // Findable by id (e.g. standby config's "standby") before first open
+    context.appFramework?.registerAppId(app.id, app.instance);
   };
 
   const appFramework = await runInContext(context, async () => {
