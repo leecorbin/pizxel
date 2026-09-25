@@ -339,6 +339,8 @@ export class EmojiLoader {
     const emojiImage = this.cache.get(emoji)!;
     const size = targetSize || emojiImage.width;
     const scale = size / emojiImage.width;
+    // One reusable colour: setPixel copies it into the buffer
+    const color: [number, number, number] = [0, 0, 0];
 
     // Render emoji pixels to buffer
     for (let py = 0; py < emojiImage.height; py++) {
@@ -357,17 +359,21 @@ export class EmojiLoader {
         // Don't skip dark pixels - they're part of the emoji content!
         // (The newspaper emoji 🗞️ has black text that needs to render)
 
+        color[0] = r;
+        color[1] = g;
+        color[2] = b;
+
         // Calculate scaled position
         if (scale === 1) {
           // No scaling
-          buffer.setPixel(x + px, y + py, [r, g, b]);
+          buffer.setPixel(x + px, y + py, color);
         } else {
           // Simple nearest-neighbor scaling
           for (let sy = 0; sy < scale; sy++) {
             for (let sx = 0; sx < scale; sx++) {
               const targetX = x + Math.floor(px * scale) + sx;
               const targetY = y + Math.floor(py * scale) + sy;
-              buffer.setPixel(targetX, targetY, [r, g, b]);
+              buffer.setPixel(targetX, targetY, color);
             }
           }
         }

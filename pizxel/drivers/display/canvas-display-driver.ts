@@ -53,6 +53,12 @@ export class CanvasDisplayDriver extends DisplayDriver {
     return true;
   }
 
+  /** Frames go to the browser as binary RGB bytes */
+  showPixels(pixels: Uint8ClampedArray): void {
+    if (!this.started) return;
+    this.server.sendPixels(pixels);
+  }
+
   show(): void {
     if (!this.started) {
       console.log("[CanvasDisplayDriver] show() called but not started");

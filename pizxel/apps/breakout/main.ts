@@ -363,16 +363,7 @@ export class BreakoutApp implements App {
 
     if (this.state === GameState.GAME_OVER) {
       // Semi-transparent overlay
-      for (let y = 60; y < 140; y++) {
-        for (let x = 40; x < 216; x++) {
-          const pixel = matrix.getPixel(x, y);
-          matrix.setPixel(x, y, [
-            Math.floor(pixel[0] * 0.3),
-            Math.floor(pixel[1] * 0.3),
-            Math.floor(pixel[2] * 0.3),
-          ]);
-        }
-      }
+      matrix.dim(40, 60, 216 - 40, 140 - 60, 0.3);
 
       matrix.rect(40, 60, 176, 80, [0, 255, 255], false);
       matrix.text("GAME OVER", 80, 80, [255, 255, 255]);

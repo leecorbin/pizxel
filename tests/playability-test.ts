@@ -151,6 +151,14 @@ async function main() {
   release(tetris, "ArrowLeft");
   await close(tetris);
 
+  const frogger = await openApp("Frogger", 20);
+  const frogY = frogger.app.frog.y;
+  press(frogger, "ArrowUp");
+  release(frogger, "ArrowUp");
+  await wait(100);
+  assert(frogger.app.frog.y < frogY, "Frogger: playable straight away on first open (not paused)");
+  await close(frogger);
+
   const snake = await openApp("Snake", 20);
   press(snake, "ArrowUp");
   release(snake, "ArrowUp");

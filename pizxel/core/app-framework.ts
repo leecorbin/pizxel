@@ -429,19 +429,9 @@ export class AppFramework {
       this.notificationManager.renderOverlay(this.displayBuffer);
       this.shownNotification = this.notificationManager.getCurrent();
 
-      // Copy buffer to display driver
-      const display = this.deviceManager.getDisplay();
-      const buffer = this.displayBuffer.getBuffer();
-
-      debugLog("[AppFramework] Copying buffer to display driver");
-      for (let y = 0; y < this.displayBuffer.getHeight(); y++) {
-        for (let x = 0; x < this.displayBuffer.getWidth(); x++) {
-          display.setPixel(x, y, buffer[y][x]);
-        }
-      }
-
-      debugLog("[AppFramework] Calling display.show()");
-      display.show();
+      // Hand the frame to the display driver
+      debugLog("[AppFramework] Showing frame");
+      this.deviceManager.getDisplay().showPixels(this.displayBuffer.getPixels());
     } catch (error) {
       this.handleAppError(this.activeApp!, error);
     }

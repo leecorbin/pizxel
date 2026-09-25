@@ -350,16 +350,7 @@ export class SnakeGame implements App {
       this.renderGame(buffer);
 
       // Semi-transparent overlay
-      for (let y = 60; y < 132; y++) {
-        for (let x = 20; x < 236; x++) {
-          const pixel = buffer.getPixel(x, y);
-          buffer.setPixel(x, y, [
-            Math.floor(pixel[0] * 0.3),
-            Math.floor(pixel[1] * 0.3),
-            Math.floor(pixel[2] * 0.3),
-          ]);
-        }
-      }
+      buffer.dim(20, 60, 236 - 20, 132 - 60, 0.3);
 
       buffer.centeredText("GAME OVER", 70, [255, 0, 0]);
       buffer.centeredText(`Final Score: ${this.score}`, 90, [255, 255, 255]);

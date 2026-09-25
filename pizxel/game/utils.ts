@@ -276,16 +276,7 @@ export class PauseManager {
     if (!this.paused) return;
 
     // Dim background
-    for (let y = 60; y < 132; y++) {
-      for (let x = 20; x < 236; x++) {
-        const pixel = buffer.getPixel(x, y);
-        buffer.setPixel(x, y, [
-          Math.floor(pixel[0] * 0.3),
-          Math.floor(pixel[1] * 0.3),
-          Math.floor(pixel[2] * 0.3),
-        ]);
-      }
-    }
+    buffer.dim(20, 60, 236 - 20, 132 - 60, 0.3);
 
     buffer.centeredText("PAUSED", 80, [255, 255, 0]);
     buffer.centeredText("Press P to continue", 100, [200, 200, 200]);

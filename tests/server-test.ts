@@ -327,6 +327,23 @@ async function main() {
     assert((await new Viewer("AAAAAAAAAAAAAAAAAAAAAA").waitForClose()) === 4404, "unknown session closes with 4404");
     assert((await new Viewer(a, "wrong").waitForClose()) === 4401, "bad token closes with 4401");
 
+    // Simultaneous connects must not exceed the limit
+    const raceManager = new SessionManager({
+      dataRoot: path.join(dataRoot, "race"),
+      maxLiveSessions: 1,
+      fps: 20,
+      idleSuspendMs: 60000,
+      extraAppsDir: null,
+      includePrivateApps: false,
+    });
+    const racers = [raceManager.create(), raceManager.create(), raceManager.create()];
+    const results = await Promise.all(racers.map((r) => raceManager.acquire(r)));
+    assert(
+      raceManager.liveCount() === 1 && results.filter(Boolean).length === 1,
+      "simultaneous connects can't exceed the live limit"
+    );
+    await raceManager.shutdown();
+
     console.log("Suspend and resume");
     // A: open Standby, change its mode, go back (saves state)
     select(manager, a, "Standby");

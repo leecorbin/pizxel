@@ -135,12 +135,15 @@ export class FroggerApp implements App {
   }
 
   async onActivate(): Promise<void> {
-    // Coming back to a game in progress: start paused
-    if (this.state === GameState.PLAYING && !this.pause.isPaused()) {
+    // Coming back to a game in progress: start paused (not on first open)
+    if (this.activatedBefore && this.state === GameState.PLAYING && !this.pause.isPaused()) {
       this.pause.pause();
     }
+    this.activatedBefore = true;
     this.dirty = true;
   }
+
+  private activatedBefore = false;
 
   onDeactivate(): void {}
 
@@ -395,16 +398,7 @@ export class FroggerApp implements App {
 
     // Game over overlay
     if (this.state === GameState.GAME_OVER) {
-      for (let y = 60; y < 140; y++) {
-        for (let x = 40; x < 216; x++) {
-          const pixel = matrix.getPixel(x, y);
-          matrix.setPixel(x, y, [
-            Math.floor(pixel[0] * 0.3),
-            Math.floor(pixel[1] * 0.3),
-            Math.floor(pixel[2] * 0.3),
-          ]);
-        }
-      }
+      matrix.dim(40, 60, 216 - 40, 140 - 60, 0.3);
 
       matrix.rect(40, 60, 176, 80, [0, 255, 255], false);
       matrix.text("GAME OVER", 80, 80, [255, 255, 255]);

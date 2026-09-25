@@ -28,6 +28,21 @@ export class SessionDisplayDriver extends DisplayDriver {
     return true;
   }
 
+  /**
+   * Frames arrive as RGB bytes: compare with the last one, and copy only
+   * when it changed (the copy is what goes to the viewers; ws may still be
+   * sending the previous one, so it can't be reused)
+   */
+  showPixels(pixels: Uint8ClampedArray): void {
+    const view = Buffer.from(pixels.buffer, pixels.byteOffset, pixels.byteLength);
+    if (this.lastFrame && view.equals(this.lastFrame)) {
+      return;
+    }
+    const frame = Buffer.from(view); // Copy
+    this.lastFrame = frame;
+    this.onFrame?.(frame);
+  }
+
   show(): void {
     const frame = Buffer.allocUnsafe(this.width * this.height * 3);
     let i = 0;

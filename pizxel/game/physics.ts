@@ -20,9 +20,19 @@ export function applyGravity(
 /**
  * Apply friction/drag to sprite velocity
  */
-export function applyFriction(sprite: Sprite, friction: number): void {
-  sprite.vx *= friction;
-  sprite.vy *= friction;
+/**
+ * Slow a sprite down. `friction` is the fraction of speed kept per 60fps
+ * frame (e.g. 0.95). Pass deltaTime (seconds) so it behaves the same at any
+ * frame rate; without it, it's applied once per call, as before.
+ */
+export function applyFriction(
+  sprite: Sprite,
+  friction: number,
+  deltaTime?: number
+): void {
+  const factor = deltaTime === undefined ? friction : Math.pow(friction, deltaTime * 60);
+  sprite.vx *= factor;
+  sprite.vy *= factor;
 }
 
 /**

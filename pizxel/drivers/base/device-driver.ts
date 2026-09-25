@@ -82,6 +82,26 @@ export abstract class DisplayDriver implements IDisplayDriver {
   }
 
   /**
+   * Show a frame given as flat RGB bytes (width * height * 3, row by row).
+   * The framework calls this; drivers that can use the bytes directly
+   * override it. By default the frame is copied into this driver's pixel
+   * buffer and show() is called, so older drivers work unchanged.
+   */
+  showPixels(pixels: Uint8ClampedArray): void {
+    // New arrays: entries may be shared (fill() and setPixel() store the
+    // caller's array), so they mustn't be changed in place
+    let i = 0;
+    for (let y = 0; y < this.height; y++) {
+      const row = this.buffer[y];
+      for (let x = 0; x < this.width; x++) {
+        row[x] = [pixels[i], pixels[i + 1], pixels[i + 2]];
+        i += 3;
+      }
+    }
+    this.show();
+  }
+
+  /**
    * Get the entire display buffer (for rendering to external surface)
    */
   getBuffer(): RGB[][] {

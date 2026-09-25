@@ -27,7 +27,11 @@ export interface InstanceContext {
 const contextStorage = new AsyncLocalStorage<InstanceContext>();
 
 const defaultContext: InstanceContext = {
-  dataRoot: path.join(process.cwd(), "data", "default-user"),
+  // PIZXEL_DATA_ROOT points local modes at another data folder (e.g. for
+  // testing without touching your own saved data)
+  dataRoot:
+    process.env.PIZXEL_DATA_ROOT ||
+    path.join(process.cwd(), "data", "default-user"),
   audio: null,
   audioInput: null,
   appFramework: null,

@@ -53,6 +53,13 @@ const MAX_TEXT_LENGTH = 256;
 const MAX_BUFFERED_BYTES = 160 * 1024;
 /** How often to check whether a lagging viewer has caught up (ms) */
 const CATCH_UP_CHECK_MS = 20;
+/**
+ * A tab left open with no input for this long drops to IDLE_FPS (a clock
+ * still ticks, but far fewer frames are drawn and sent); the next key brings
+ * the full frame rate back
+ */
+const IDLE_VIEW_MS = 10 * 60 * 1000;
+const IDLE_FPS = 2;
 
 /** Microphone messages accepted from the browser */
 const AUDIO_INPUT_TYPES = new Set([
@@ -77,6 +84,9 @@ export class Session implements AudioBridge {
   /** Viewers that skipped a frame and need the latest one when they catch up */
   private lagging: Set<WebSocket> = new Set();
   private catchUpTimer: NodeJS.Timeout | null = null;
+  private lastInputAt: number = Date.now();
+  private idleTimer: NodeJS.Timeout | null = null;
+  private throttled: boolean = false;
   private instance: PizxelInstance | null = null;
   private display: SessionDisplayDriver | null = null;
   private input: SessionInputDriver | null = null;
@@ -223,6 +233,9 @@ export class Session implements AudioBridge {
     this.input = input;
     this.instance = instance;
     this.state = "live";
+    this.lastInputAt = Date.now();
+    this.throttled = false;
+    this.idleTimer = setInterval(() => this.checkIdleView(), 30 * 1000);
     console.log(`[Session ${this.id}] Live`);
   }
 
@@ -238,6 +251,8 @@ export class Session implements AudioBridge {
 
     if (this.catchUpTimer) clearTimeout(this.catchUpTimer);
     this.catchUpTimer = null;
+    if (this.idleTimer) clearInterval(this.idleTimer);
+    this.idleTimer = null;
     this.lagging.clear();
 
     const instance = this.instance;
@@ -313,6 +328,28 @@ export class Session implements AudioBridge {
     }
   }
 
+  /** Slow down a session nobody has touched for a while */
+  private checkIdleView(): void {
+    if (
+      !this.throttled &&
+      this.instance &&
+      Date.now() - this.lastInputAt > IDLE_VIEW_MS
+    ) {
+      this.throttled = true;
+      this.instance.appFramework.setTargetFPS(IDLE_FPS);
+    }
+  }
+
+  /** Input: back to the full frame rate if the session had slowed down */
+  private noteInput(): void {
+    this.lastInputAt = Date.now();
+    this.lastActiveAt = this.lastInputAt;
+    if (this.throttled && this.instance) {
+      this.throttled = false;
+      this.instance.appFramework.setTargetFPS(this.options.fps);
+    }
+  }
+
   /** Release every key a viewer is holding (it closed or dropped) */
   private releaseKeys(ws: WebSocket): void {
     const held = this.heldKeys.get(ws);
@@ -341,7 +378,7 @@ export class Session implements AudioBridge {
     switch (msg.type) {
       case "key":
         if (typeof msg.key === "string" && msg.key.length <= MAX_KEY_LENGTH) {
-          this.lastActiveAt = Date.now();
+          this.noteInput();
           if (!this.heldKeys.has(ws)) this.heldKeys.set(ws, new Set());
           this.heldKeys.get(ws)!.add(msg.key);
           instance.run(() => input.handleKey(msg.key, msg.repeat === true));
@@ -358,7 +395,7 @@ export class Session implements AudioBridge {
 
       case "text":
         if (typeof msg.text === "string") {
-          this.lastActiveAt = Date.now();
+          this.noteInput();
           const text = msg.text.slice(0, MAX_TEXT_LENGTH);
           instance.run(() => {
             // Typed in: each character pressed and released

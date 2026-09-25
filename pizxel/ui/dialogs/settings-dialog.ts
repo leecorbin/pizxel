@@ -231,16 +231,7 @@ export class SettingsDialog extends Widget {
 
   protected renderSelf(matrix: DisplayBuffer): void {
     // Dim background
-    for (let y = 0; y < matrix.getHeight(); y++) {
-      for (let x = 0; x < matrix.getWidth(); x++) {
-        const pixel = matrix.getPixel(x, y);
-        matrix.setPixel(x, y, [
-          Math.floor(pixel[0] * 0.3),
-          Math.floor(pixel[1] * 0.3),
-          Math.floor(pixel[2] * 0.3),
-        ]);
-      }
-    }
+    matrix.dim(0, 0, matrix.getWidth(), matrix.getHeight(), 0.3);
 
     const pos = this.getAbsolutePosition();
     const dialogX = this.container.x + pos.x;

@@ -37,6 +37,10 @@ export class SessionManager {
   private config: ServerConfig;
   private sessionsDir: string;
   private sessions: Map<string, Session> = new Map();
+  /** Sessions being resumed right now (they hold a live slot already) */
+  private resuming: Set<Session> = new Set();
+  /** Live sessions being suspended to make room (each frees one slot) */
+  private evicting: Set<Session> = new Set();
 
   constructor(config: ServerConfig) {
     this.config = config;
@@ -55,7 +59,10 @@ export class SessionManager {
   liveCount(): number {
     let count = 0;
     for (const session of this.sessions.values()) {
-      if (session.state === "live") count++;
+      // Being evicted still counts until it's suspended, but it's already
+      // spoken for: don't count it twice against a new session
+      if (this.evicting.has(session)) continue;
+      if (session.state === "live" || this.resuming.has(session)) count++;
     }
     return count;
   }
@@ -96,18 +103,37 @@ export class SessionManager {
    * live session has viewers.
    */
   async acquire(session: Session): Promise<boolean> {
-    if (session.state === "live") return true;
-
-    if (this.liveCount() >= this.config.maxLiveSessions) {
-      const idle = [...this.sessions.values()]
-        .filter((s) => s.state === "live" && s.viewerCount === 0)
-        .sort((a, b) => a.lastActiveAt - b.lastActiveAt)[0];
-      if (!idle) return false;
-      await idle.suspend();
+    if (session.state === "live" || this.resuming.has(session)) {
+      await session.resume(); // Waits for a resume already under way
+      return true;
     }
 
-    await session.resume();
-    return true;
+    // Claim a slot before any await, so simultaneous connects can't all see
+    // a free slot and exceed the limit
+    let evict: Session | undefined;
+    if (this.liveCount() >= this.config.maxLiveSessions) {
+      evict = [...this.sessions.values()]
+        .filter(
+          (s) =>
+            s.state === "live" &&
+            !this.resuming.has(s) &&
+            !this.evicting.has(s) &&
+            s.viewerCount === 0
+        )
+        .sort((a, b) => a.lastActiveAt - b.lastActiveAt)[0];
+      if (!evict) return false;
+    }
+    this.resuming.add(session);
+    if (evict) this.evicting.add(evict);
+
+    try {
+      if (evict) await evict.suspend();
+      await session.resume();
+      return true;
+    } finally {
+      this.resuming.delete(session);
+      if (evict) this.evicting.delete(evict);
+    }
   }
 
   /**

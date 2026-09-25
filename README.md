@@ -71,8 +71,10 @@ default), `"optional"` (added per visitor from the pizxel.uk app shelf) or
 `"private"` (only on a private instance). Local modes ignore tiers and load
 every app.
 
-Local modes also read `CANVAS_PORT` (default `3001`) and `CANVAS_PIXEL_SIZE`
-(default `3`).
+Local modes also read `CANVAS_PORT` (default `3001`), `CANVAS_PIXEL_SIZE`
+(default `3`) and `PIZXEL_DATA_ROOT` (where saved data lives; default
+`data/default-user`, e.g. point it elsewhere to test without touching your
+own data).
 
 ## ✨ Key Features
 

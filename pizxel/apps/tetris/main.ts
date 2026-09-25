@@ -495,16 +495,7 @@ export class TetrisApp implements App {
 
     // Game over overlay
     if (this.state === GameState.GAME_OVER) {
-      for (let y = 60; y < 140; y++) {
-        for (let x = 60; x < 200; x++) {
-          const pixel = matrix.getPixel(x, y);
-          matrix.setPixel(x, y, [
-            Math.floor(pixel[0] * 0.3),
-            Math.floor(pixel[1] * 0.3),
-            Math.floor(pixel[2] * 0.3),
-          ]);
-        }
-      }
+      matrix.dim(60, 60, 200 - 60, 140 - 60, 0.3);
 
       matrix.rect(60, 60, 140, 80, [0, 255, 255], false);
       matrix.centeredText("GAME OVER", 76, [255, 255, 255]);

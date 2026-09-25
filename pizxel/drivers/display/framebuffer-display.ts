@@ -232,6 +232,101 @@ export class FramebufferDisplayDriver extends DisplayDriver {
     }
   }
 
+  // Fast path state (showPixels)
+  private lastPixels: Uint8Array | null = null;
+  private lutMultiplier = -1;
+  private brightnessLut = new Uint8Array(256);
+  private rowRgb565: Uint16Array | null = null;
+
+  /**
+   * Show a frame given as RGB bytes: RGB565 via a brightness lookup table,
+   * each scaled row built once and copied for the vertical scaling, and only
+   * the rows that changed written to the device (was the whole screen,
+   * ~768KB, per frame)
+   */
+  showPixels(pixels: Uint8ClampedArray): void {
+    if (!this.fbFd || !this.fbBuffer) {
+      console.error("[FramebufferDisplayDriver] showPixels() called but not initialized");
+      return;
+    }
+
+    const scaledWidth = this.width * this.scale;
+    const fits =
+      this.bitsPerPixel === 16 &&
+      this.offsetX >= 0 &&
+      this.offsetY >= 0 &&
+      this.offsetX + scaledWidth <= this.fbWidth &&
+      this.offsetY + this.height * this.scale <= this.fbHeight;
+    if (!fits) {
+      super.showPixels(pixels); // Unusual layouts: the general path
+      return;
+    }
+
+    if (this.lutMultiplier !== this.brightnessMultiplier) {
+      this.lutMultiplier = this.brightnessMultiplier;
+      for (let v = 0; v < 256; v++) {
+        this.brightnessLut[v] = Math.floor(v * this.brightnessMultiplier);
+      }
+      this.lastPixels = null; // Brightness changed: redraw everything
+    }
+    if (!this.rowRgb565 || this.rowRgb565.length !== scaledWidth) {
+      this.rowRgb565 = new Uint16Array(scaledWidth);
+    }
+    if (!this.lastPixels || this.lastPixels.length !== pixels.length) {
+      this.lastPixels = null;
+    }
+
+    const lut = this.brightnessLut;
+    const row565 = this.rowRgb565;
+    const rowBytes = new Uint8Array(row565.buffer); // Little-endian, as before
+    const rowStride = this.width * 3;
+    let firstChanged = -1;
+    let lastChanged = -1;
+
+    for (let y = 0; y < this.height; y++) {
+      const start = y * rowStride;
+
+      // Skip rows that haven't changed since the last frame
+      if (this.lastPixels) {
+        let same = true;
+        for (let i = start; i < start + rowStride; i++) {
+          if (pixels[i] !== this.lastPixels[i]) {
+            same = false;
+            break;
+          }
+        }
+        if (same) continue;
+      }
+
+      // Convert and scale the row horizontally
+      for (let x = 0, i = start; x < this.width; x++, i += 3) {
+        const r = lut[pixels[i]];
+        const g = lut[pixels[i + 1]];
+        const b = lut[pixels[i + 2]];
+        const rgb565 = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+        const base = x * this.scale;
+        for (let dx = 0; dx < this.scale; dx++) row565[base + dx] = rgb565;
+      }
+
+      // Copy it into the scaled rows of the framebuffer
+      for (let dy = 0; dy < this.scale; dy++) {
+        const fbY = this.offsetY + y * this.scale + dy;
+        this.fbBuffer.set(rowBytes, (fbY * this.fbWidth + this.offsetX) * 2);
+      }
+      if (firstChanged < 0) firstChanged = y;
+      lastChanged = y;
+    }
+
+    if (!this.lastPixels) this.lastPixels = new Uint8Array(pixels.length);
+    this.lastPixels.set(pixels);
+    if (firstChanged < 0) return; // Nothing changed
+
+    // Write just the band of framebuffer rows that changed
+    const from = (this.offsetY + firstChanged * this.scale) * this.fbWidth * 2;
+    const to = (this.offsetY + (lastChanged + 1) * this.scale) * this.fbWidth * 2;
+    fs.writeSync(this.fbFd, this.fbBuffer, from, to - from, from);
+  }
+
   show(): void {
     if (!this.fbFd || !this.fbBuffer) {
       console.error("[FramebufferDisplayDriver] show() called but not initialized");

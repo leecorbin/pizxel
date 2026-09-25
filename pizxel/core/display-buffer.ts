@@ -9,7 +9,10 @@ import { RGB } from "../types";
 import { defaultFont } from "./font";
 
 export class DisplayBuffer {
-  private buffer: RGB[][];
+  // One flat RGB byte buffer (width * height * 3), row by row: no per-pixel
+  // arrays to allocate, clear or garbage-collect. Clamped, so colours from
+  // arithmetic (fractions, >255) come out right.
+  private pixels: Uint8ClampedArray;
   private width: number;
   private height: number;
   private clipStack: Array<{
@@ -31,10 +34,7 @@ export class DisplayBuffer {
     this.width = width;
     this.height = height;
 
-    // Initialize buffer
-    this.buffer = Array.from({ length: height }, () =>
-      Array.from({ length: width }, () => [0, 0, 0] as RGB)
-    );
+    this.pixels = new Uint8ClampedArray(width * height * 3);
   }
 
   getWidth(): number {
@@ -46,10 +46,28 @@ export class DisplayBuffer {
   }
 
   /**
-   * Get the raw buffer (for display drivers)
+   * The pixels as flat RGB bytes (width * height * 3, row by row). This is
+   * the live buffer: display drivers read it, they don't keep it.
+   */
+  getPixels(): Uint8ClampedArray {
+    return this.pixels;
+  }
+
+  /**
+   * The pixels as rows of [r, g, b] (a copy, for older code; slow, prefer
+   * getPixels())
    */
   getBuffer(): RGB[][] {
-    return this.buffer;
+    const rows: RGB[][] = [];
+    for (let y = 0; y < this.height; y++) {
+      const row: RGB[] = [];
+      for (let x = 0; x < this.width; x++) {
+        const i = (y * this.width + x) * 3;
+        row.push([this.pixels[i], this.pixels[i + 1], this.pixels[i + 2]]);
+      }
+      rows.push(row);
+    }
+    return rows;
   }
 
   /** Characters text() draws as nothing, taking no space */
@@ -81,7 +99,10 @@ export class DisplayBuffer {
       return;
     }
 
-    this.buffer[y][x] = color;
+    const i = (y * this.width + x) * 3;
+    this.pixels[i] = color[0];
+    this.pixels[i + 1] = color[1];
+    this.pixels[i + 2] = color[2];
   }
 
   /**
@@ -185,30 +206,51 @@ export class DisplayBuffer {
    * Get pixel color at position
    */
   getPixel(x: number, y: number): RGB {
+    x = Math.floor(x);
+    y = Math.floor(y);
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
       return [0, 0, 0];
     }
-    return this.buffer[y][x];
+    const i = (y * this.width + x) * 3;
+    return [this.pixels[i], this.pixels[i + 1], this.pixels[i + 2]];
   }
 
   /**
    * Clear entire buffer to black
    */
   clear(): void {
-    for (let y = 0; y < this.height; y++) {
-      for (let x = 0; x < this.width; x++) {
-        this.buffer[y][x] = [0, 0, 0];
-      }
-    }
+    this.pixels.fill(0);
   }
 
   /**
    * Fill entire buffer with color
    */
   fill(color: RGB = [0, 0, 0]): void {
-    for (let y = 0; y < this.height; y++) {
-      for (let x = 0; x < this.width; x++) {
-        this.buffer[y][x] = color;
+    if (color[0] === color[1] && color[1] === color[2]) {
+      this.pixels.fill(color[0]);
+      return;
+    }
+    for (let i = 0; i < this.pixels.length; i += 3) {
+      this.pixels[i] = color[0];
+      this.pixels[i + 1] = color[1];
+      this.pixels[i + 2] = color[2];
+    }
+  }
+
+  /**
+   * Darken a rectangle (e.g. behind a pause or game-over box): each channel
+   * is multiplied by factor (0..1)
+   */
+  dim(x: number, y: number, width: number, height: number, factor: number): void {
+    const x0 = Math.max(0, Math.floor(x));
+    const y0 = Math.max(0, Math.floor(y));
+    const x1 = Math.min(this.width, Math.floor(x + width));
+    const y1 = Math.min(this.height, Math.floor(y + height));
+    for (let row = y0; row < y1; row++) {
+      let i = (row * this.width + x0) * 3;
+      const end = (row * this.width + x1) * 3;
+      for (; i < end; i++) {
+        this.pixels[i] = this.pixels[i] * factor;
       }
     }
   }
@@ -269,7 +311,25 @@ export class DisplayBuffer {
     height = Math.round(height);
 
     if (fill) {
-      // Filled rectangle
+      // Filled rectangle: straight into the buffer when there's no clip or
+      // transform (the common case)
+      if (!this.currentClip && this.currentTransform.x === 0 && this.currentTransform.y === 0) {
+        const x0 = Math.max(0, x);
+        const y0 = Math.max(0, y);
+        const x1 = Math.min(this.width, x + width);
+        const y1 = Math.min(this.height, y + height);
+        const [r, g, b] = color;
+        for (let row = y0; row < y1; row++) {
+          let i = (row * this.width + x0) * 3;
+          const end = (row * this.width + x1) * 3;
+          while (i < end) {
+            this.pixels[i++] = r;
+            this.pixels[i++] = g;
+            this.pixels[i++] = b;
+          }
+        }
+        return;
+      }
       for (let dy = 0; dy < height; dy++) {
         for (let dx = 0; dx < width; dx++) {
           this.setPixel(x + dx, y + dy, color);

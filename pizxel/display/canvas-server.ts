@@ -273,6 +273,34 @@ export class CanvasServer {
   /**
    * Send frame update to all connected clients
    */
+  /**
+   * Send a frame given as flat RGB bytes (width * height * 3): as binary,
+   * only when it changed, and dropped rather than queued for a browser that
+   * can't keep up
+   */
+  sendPixels(pixels: Uint8ClampedArray): void {
+    const view = Buffer.from(pixels.buffer, pixels.byteOffset, pixels.byteLength);
+    const last: Buffer | undefined = this.lastFrame?.data;
+    if (Buffer.isBuffer(last) && view.equals(last)) {
+      return;
+    }
+
+    // Cache a copy for new clients (the pixels buffer is reused)
+    this.lastFrame = {
+      data: Buffer.from(view),
+      width: this.displayWidth,
+      height: this.displayHeight,
+    };
+
+    if (this.clientCount === 0) {
+      return;
+    }
+    this.io.volatile.emit("frame", this.lastFrame);
+  }
+
+  /**
+   * Send a frame from a DisplayBuffer (older callers; prefer sendPixels)
+   */
   sendFrame(buffer: DisplayBuffer): void {
     const rgbBuffer = buffer.getBuffer();
 
@@ -557,35 +585,49 @@ export class CanvasServer {
         lastFrameTime = now;
       }
       
-      // Render pixels
-      const imageData = ctx.createImageData(width * pixelSize, height * pixelSize);
-      const pixels = imageData.data;
-      
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const idx = (y * width + x) * 3;
-          const r = data.data[idx];
-          const g = data.data[idx + 1];
-          const b = data.data[idx + 2];
-          
-          // Draw pixel as pixelSize × pixelSize block
-          for (let py = 0; py < pixelSize; py++) {
-            for (let px = 0; px < pixelSize; px++) {
-              const pixelX = x * pixelSize + px;
-              const pixelY = y * pixelSize + py;
-              const pixelIdx = (pixelY * width * pixelSize + pixelX) * 4;
-              
-              pixels[pixelIdx] = r;
-              pixels[pixelIdx + 1] = g;
-              pixels[pixelIdx + 2] = b;
-              pixels[pixelIdx + 3] = 255;
-            }
-          }
-        }
+      // Keep only the latest frame; draw it on the next animation frame
+      // (binary RGB bytes, or a number array from older servers)
+      pendingFrame = data.data instanceof ArrayBuffer ? new Uint8Array(data.data) : data.data;
+      if (!drawScheduled) {
+        drawScheduled = true;
+        requestAnimationFrame(drawFrame);
       }
-      
-      ctx.putImageData(imageData, 0, 0);
     });
+
+    // Frames are drawn at native size into a small reusable image, then
+    // scaled up without smoothing (much cheaper than drawing every block)
+    let pendingFrame = null;
+    let drawScheduled = false;
+    let frameCanvas = null;
+    let frameCtx = null;
+    let frameImage = null;
+
+    function drawFrame() {
+      drawScheduled = false;
+      const frame = pendingFrame;
+      if (!frame) return;
+      pendingFrame = null;
+
+      if (!frameImage || frameImage.width !== width || frameImage.height !== height) {
+        frameCanvas = document.createElement('canvas');
+        frameCanvas.width = width;
+        frameCanvas.height = height;
+        frameCtx = frameCanvas.getContext('2d');
+        frameImage = frameCtx.createImageData(width, height);
+      }
+
+      const out = frameImage.data;
+      for (let i = 0, j = 0; i < width * height * 3; i += 3, j += 4) {
+        out[j] = frame[i];
+        out[j + 1] = frame[i + 1];
+        out[j + 2] = frame[i + 2];
+        out[j + 3] = 255;
+      }
+      frameCtx.putImageData(frameImage, 0, 0);
+
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(frameCanvas, 0, 0, canvas.width, canvas.height);
+    }
     
     // Handle disconnection
     socket.on('disconnect', () => {

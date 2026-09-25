@@ -173,17 +173,7 @@ export class GamesPopup {
     }
 
     // Draw semi-transparent overlay (darken background)
-    for (let y = 0; y < this.displayHeight; y++) {
-      for (let x = 0; x < this.displayWidth; x++) {
-        const pixel = matrix.getPixel(x, y);
-        const dimmed: [number, number, number] = [
-          Math.floor(pixel[0] * 0.3),
-          Math.floor(pixel[1] * 0.3),
-          Math.floor(pixel[2] * 0.3),
-        ];
-        matrix.setPixel(x, y, dimmed);
-      }
-    }
+    matrix.dim(0, 0, this.displayWidth, this.displayHeight, 0.3);
 
     // Draw popup background
     matrix.rect(
