@@ -387,6 +387,7 @@ To make it part of `npm test`, add the file to the `test` script in `package.jso
 
 - **[docs/API_REFERENCE.md](docs/API_REFERENCE.md)**: app interface, drawing, input, storage, audio, UI, testing
 - **[docs/DISPLAY_MODES.md](docs/DISPLAY_MODES.md)**: display drivers, auto-detection, troubleshooting
+- **[docs/HARDWARE.md](docs/HARDWARE.md)**: plans for a dedicated PiZXel display (OLED + Pi Zero 2 W, and LED alternatives)
 - **[docs/session-api.md](docs/session-api.md)**: session server API for pizxel.uk
 - **[AGENTS.md](AGENTS.md)**: guide for AI assistants (and humans) working on the code
 
