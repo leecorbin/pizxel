@@ -6,7 +6,7 @@
 # Configuration is by environment variable; see README.md ("Session server").
 
 # ---- Build: install dependencies (node-canvas may compile from source) ----
-FROM node:22.23.3-bookworm-slim AS build
+FROM node:22.23.4-bookworm-slim AS build
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
@@ -20,7 +20,7 @@ RUN npm ci --omit=dev \
  && npm cache clean --force
 
 # ---- Runtime ----
-FROM node:22.23.3-bookworm-slim
+FROM node:22.23.4-bookworm-slim
 
 # Shared libraries node-canvas links against
 RUN apt-get update \
